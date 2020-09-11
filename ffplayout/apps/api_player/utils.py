@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import socket
 from datetime import datetime
 from platform import uname
 from subprocess import PIPE, STDOUT, run
@@ -14,14 +15,13 @@ import zmq
 from apps.api_player.models import GuiSettings
 from django.conf import settings
 from natsort import natsorted
-from rest_framework import status
 from rest_framework.response import Response
 
 
 def read_yaml():
-    setting = GuiSettings.objects.filter(id=1).values()
-    if setting:
-        config = setting[0]
+    gui_settings = GuiSettings.objects.filter(id=1).values()
+    if gui_settings:
+        config = gui_settings[0]
 
         if config and os.path.isfile(config['playout_config']):
             with open(config['playout_config'], 'r') as config_file:
@@ -59,7 +59,6 @@ def write_json(data):
     if os.path.isfile(output) and data == read_json(data['date']):
         return Response(
             {'detail': 'Playlist from {} already exists'.format(data['date'])})
-
 
     with open(output, "w") as outfile:
         json.dump(data, outfile, indent=4)
@@ -163,18 +162,40 @@ class PlayoutService:
 
         return self.proc.replace('\n', '')
 
-    def log(self):
-        self.cmd = ['sudo', '/bin/journalctl', '-n', '1000', '-u']
 
-        self.run_cmd()
+def playout_socket(cmd):
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect((settings.SOCKET_IP, settings.SOCKET_PORT))
 
-        return self.proc
+    status = 404
+
+    try:
+        if cmd in ['start', 'stop', 'restart', 'reload']:
+            sock.sendall(str.encode(cmd))
+
+            if len(cmd) > 0:
+                data = sock.recv(3).decode('utf-8').strip()
+                status = data
+        elif cmd == 'status':
+            sock.sendall(str.encode(cmd))
+
+            if len(cmd) > 0:
+                data = sock.recv(8).decode('utf-8').strip()
+
+                if data in ['RUNNING', 'STARTING']:
+                    status = 'active'
+                else:
+                    status = 'stopped'
+    finally:
+        sock.close()
+
+    return status
 
 
 class SystemStats:
     def __init__(self):
-        settings = GuiSettings.objects.filter(id=1).values()
-        self.config = settings[0] if settings else []
+        gui_settings = GuiSettings.objects.filter(id=1).values()
+        self.config = gui_settings[0] if gui_settings else []
 
     def all(self):
         if self.config:

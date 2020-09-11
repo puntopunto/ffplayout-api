@@ -132,10 +132,16 @@ for dir in os.listdir(APPS_DIR):
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
 STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'static/')
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 # ffmpeg filter node, needs to be edit only when the filter chain changes
 DRAW_TEXT_NODE = 'Parsed_drawtext_2'
 
 # zmq settings
 REQUEST_TIMEOUT = 1000
+
+# controlling of the engine over systemd unit, or socket
+# use_socker False switch to systemd
+USE_SOCKET = True
+SOCKET_IP = '127.0.0.1'
+SOCKET_PORT = 64233

@@ -5,15 +5,17 @@ from urllib.parse import unquote
 from apps.api_player.models import GuiSettings, MessengePresets
 from apps.api_player.serializers import (GuiSettingsSerializer,
                                          MessengerSerializer, UserSerializer)
+from django.conf import settings
 from django.contrib.auth.models import User
 from django_filters import rest_framework as filters
-from rest_framework import status, viewsets
+from rest_framework import viewsets
 from rest_framework.parsers import FileUploadParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .utils import (PlayoutService, SystemStats, get_media_path, read_json,
-                    read_log, read_yaml, send_message, write_json, write_yaml)
+from .utils import (PlayoutService, SystemStats, get_media_path,
+                    playout_socket, read_json, read_log, read_yaml,
+                    send_message, write_json, write_yaml)
 
 
 class CurrentUserView(APIView):
@@ -99,35 +101,48 @@ class Config(APIView):
 
 class SystemCtl(APIView):
     """
-    controlling the ffplayout-engine systemd services
+    controlling the ffplayout-engine over systemd services,
+    or over a socket connecting
     """
 
     def post(self, request, *args, **kwargs):
         if 'run' in request.data:
-            service = PlayoutService()
-
-            if request.data['run'] == 'start':
-                service.start()
-                return Response(status=200)
-            elif request.data['run'] == 'stop':
-                service.stop()
-                return Response(status=200)
-            elif request.data['run'] == 'reload':
-                service.reload()
-                return Response(status=200)
-            elif request.data['run'] == 'restart':
-                service.restart()
-                return Response(status=200)
-            elif request.data['run'] == 'status':
-                status = service.status()
-                return Response({"data": status})
-            elif request.data['run'] == 'log':
-                log = service.log()
-                return Response({"data": log})
+            if settings.USE_SOCKET:
+                return self.socket(request.data['run'])
             else:
-                return Response(status=400)
+                return self.systemd(request.data['run'])
 
         return Response(status=404)
+
+    def systemd(self, cmd):
+        service = PlayoutService()
+
+        if cmd == 'start':
+            service.start()
+            return Response(status=200)
+        elif cmd == 'stop':
+            service.stop()
+            return Response(status=200)
+        elif cmd == 'reload':
+            service.reload()
+            return Response(status=200)
+        elif cmd == 'restart':
+            service.restart()
+            return Response(status=200)
+        elif cmd == 'status':
+            status = service.status()
+            return Response({"data": status})
+        else:
+            return Response(status=400)
+
+    def socket(self, cmd):
+        sock = playout_socket(cmd)
+        if sock in ['active', 'stopped']:
+            return Response({"data": sock})
+        elif sock == '200':
+            return Response(status=200)
+        else:
+            return Response(status=400)
 
 
 class LogReader(APIView):
