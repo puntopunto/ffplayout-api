@@ -142,6 +142,6 @@ REQUEST_TIMEOUT = 1000
 
 # controlling of the engine over systemd unit, or socket
 # use_socker False switch to systemd
-USE_SOCKET = True
+USE_SOCKET = False
 SOCKET_IP = '127.0.0.1'
 SOCKET_PORT = 64233
