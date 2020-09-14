@@ -216,11 +216,11 @@ class SystemStats:
         load = psutil.getloadavg()
         return {
             'cpu_usage': psutil.cpu_percent(interval=1),
-            'cpu_load': list(
+            'cpu_load': [
                 '{:.2f}'.format(load[0]),
                 '{:.2f}'.format(load[1]),
                 '{:.2f}'.format(load[2])
-                )
+                ]
             }
 
     def ram(self):
