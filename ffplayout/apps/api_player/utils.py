@@ -7,10 +7,10 @@ from platform import uname
 from subprocess import PIPE, STDOUT, run
 from time import sleep
 
+import yaml
 from pymediainfo import MediaInfo
 
 import psutil
-import yaml
 import zmq
 from apps.api_player.models import GuiSettings
 from django.conf import settings
@@ -220,8 +220,8 @@ class SystemStats:
                 '{:.2f}'.format(load[0]),
                 '{:.2f}'.format(load[1]),
                 '{:.2f}'.format(load[2])
-                ]
-            }
+            ]
+        }
 
     def ram(self):
         mem = psutil.virtual_memory()
