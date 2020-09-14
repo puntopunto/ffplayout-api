@@ -82,7 +82,12 @@ def read_log(type, _date):
 
 def send_message(data):
     config = read_yaml()
-    address, port = config['text']['bind_address'].split(':')
+
+    if settings.USE_SOCKET:
+        address = settings.SOCKET_IP
+        port = config['text']['bind_address'].split(':')[1]
+    else:
+        address, port = config['text']['bind_address'].split(':')
 
     context = zmq.Context(1)
     client = context.socket(zmq.REQ)
