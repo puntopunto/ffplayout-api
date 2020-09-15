@@ -19,10 +19,12 @@ class UserSerializer(serializers.ModelSerializer):
         if 'new_password' in validated_data and \
                 'old_password' in validated_data:
             if not validated_data['new_password']:
-                raise serializers.ValidationError({'new_password': 'not found'})
+                raise serializers.ValidationError(
+                    {'new_password': 'not found'})
 
             if not validated_data['old_password']:
-                raise serializers.ValidationError({'old_password': 'not found'})
+                raise serializers.ValidationError(
+                    {'old_password': 'not found'})
 
             if not instance.check_password(validated_data['old_password']):
                 raise serializers.ValidationError(
