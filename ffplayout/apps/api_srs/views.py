@@ -1,3 +1,5 @@
+import ipaddress
+
 from django.conf import settings
 from rest_framework.parsers import JSONParser
 from rest_framework.permissions import AllowAny
@@ -24,11 +26,11 @@ class Publish(APIView):
         if request.query_params['key'] != settings.SRS_KEY:
             return Response({"code": 403, "data": None})
         elif request.data['action'] == 'on_publish':
-            # check rtmp auth
-            if self.rtmp_key(request.data):
+            # check rtmp auth and private IP
+            if self.rtmp_key(request.data) or \
+                    ipaddress.ip_address(request.data['ip']).is_private:
                 print(request.data)
-                if 'run' in request.data:
-                    pass
+                # TODO: do something on publish
                 return Response({"code": 0, "data": None})
             else:
                 return Response({"code": 403, "data": None})
@@ -39,7 +41,7 @@ class Publish(APIView):
             return Response({"code": 200, "data": None})
 
     def rtmp_key(self, req):
-        param = req["param"].lstrip('?')
+        param = req['param'].lstrip('?')
         params = param.split('&')
         obj = {}
 
