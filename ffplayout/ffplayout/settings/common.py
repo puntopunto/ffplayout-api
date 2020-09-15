@@ -145,3 +145,9 @@ REQUEST_TIMEOUT = 1000
 USE_SOCKET = False
 SOCKET_IP = '127.0.0.1'
 SOCKET_PORT = 64233
+
+# srs rtmp server API key
+SRS_KEY = 'fdO12mlKgp0H4z3sG8ybc5Du9wQFi77vN'
+
+# rtmp authentication
+RTMP_KEY = 'fdO12mlKgp0H4z3sG8ybc5Du9wQFi77vN'
