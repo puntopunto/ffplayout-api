@@ -33,8 +33,8 @@
     "fields": {
         "name": "empty-text",
         "message": null,
-        "x": null,
-        "y": null,
+        "x": "0",
+        "y": "0",
         "font_size": 24,
         "font_spacing": 4,
         "font_color": "#ffffff",
