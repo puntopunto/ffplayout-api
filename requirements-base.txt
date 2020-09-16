@@ -9,4 +9,5 @@ natsort
 psutil
 pymediainfo
 pyyaml
+requests
 zmq
