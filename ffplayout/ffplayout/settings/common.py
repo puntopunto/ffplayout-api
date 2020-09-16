@@ -140,14 +140,24 @@ DRAW_TEXT_NODE = 'Parsed_drawtext_2'
 # zmq settings
 REQUEST_TIMEOUT = 1000
 
+###############################################################################
 # controlling of the engine over systemd unit, or socket
 # use_socker False switch to systemd
 USE_SOCKET = False
 SOCKET_IP = '127.0.0.1'
 SOCKET_PORT = 64233
 
+###############################################################################
+# srs streaming server
+SRS_IP = 'srs'
+SRS_API_PORT = 1985
+
 # srs rtmp server API key
 SRS_KEY = 'fdO12mlKgp0H4z3sG8ybc5Du9wQFi77vN'
 
 # rtmp authentication
 RTMP_KEY = 'fdO12mlKgp0H4z3sG8ybc5Du9wQFi77vN'
+# set which rtmp stream have highes priority (low priority get kicked out)
+# stream is the last part of the rtmp address: rtmp://example.org/live/[stream]
+HIGH_PRIORITY_STREAM = 'event'
+LOW_PRIORITY_STREAM = 'tv'
