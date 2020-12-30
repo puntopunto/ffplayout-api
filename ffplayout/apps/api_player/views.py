@@ -45,6 +45,17 @@ class GuiSettingsViewSet(viewsets.ModelViewSet):
     queryset = GuiSettings.objects.all()
     serializer_class = GuiSettingsSerializer
 
+    def destroy(self, request, *args, **kwargs):
+        obj = GuiSettings.objects.get(id=kwargs['pk'])
+
+        if os.path.isfile(obj.engine_service):
+            os.remove(obj.engine_service)
+        if os.path.isfile(obj.playout_config):
+            os.remove(obj.playout_config)
+
+        return super(
+            GuiSettingsViewSet, self).destroy(request, *args, **kwargs)
+
 
 class MessengerFilter(filters.FilterSet):
 
@@ -82,7 +93,8 @@ class Config(APIView):
 
     def get(self, request, *args, **kwargs):
         if 'configPlayout' in request.GET.dict():
-            yaml_input = read_yaml()
+            path = request.GET.dict()['path']
+            yaml_input = read_yaml(path)
 
             if yaml_input:
                 return Response(yaml_input)
