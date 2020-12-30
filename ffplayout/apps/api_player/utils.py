@@ -7,25 +7,20 @@ from platform import uname
 from subprocess import PIPE, STDOUT, run
 from time import sleep
 
-import yaml
-from pymediainfo import MediaInfo
-
 import psutil
+import yaml
 import zmq
 from apps.api_player.models import GuiSettings
 from django.conf import settings
 from natsort import natsorted
+from pymediainfo import MediaInfo
 from rest_framework.response import Response
 
 
-def read_yaml():
-    gui_settings = GuiSettings.objects.filter(id=1).values()
-    if gui_settings:
-        config = gui_settings[0]
-
-        if config and os.path.isfile(config['playout_config']):
-            with open(config['playout_config'], 'r') as config_file:
-                return yaml.safe_load(config_file)
+def read_yaml(path):
+    if os.path.isfile(path):
+        with open(path, 'r') as config_file:
+            return yaml.safe_load(config_file)
 
 
 def write_yaml(data):
