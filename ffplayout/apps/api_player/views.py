@@ -104,8 +104,8 @@ class Config(APIView):
             return Response(status=404)
 
     def post(self, request, *args, **kwargs):
-        if 'data' in request.data:
-            write_yaml(request.data['data'])
+        if 'data' in request.data and 'path' in request.query_params:
+            write_yaml(request.data['data'], request.query_params['path'])
             return Response(status=200)
 
         return Response(status=404)
@@ -116,6 +116,8 @@ class SystemCtl(APIView):
     controlling the ffplayout-engine over systemd services,
     or over a socket connecting
     """
+
+    # TODO: change to supervisor control
 
     def post(self, request, *args, **kwargs):
         if 'run' in request.data:
@@ -162,8 +164,9 @@ class LogReader(APIView):
         if 'type' in request.GET.dict() and 'date' in request.GET.dict():
             type = request.GET.dict()['type']
             _date = request.GET.dict()['date']
+            config_path = request.GET.dict()['config_path']
 
-            log = read_log(type, _date)
+            log = read_log(type, _date, config_path)
 
             if log:
                 return Response({'log': log})
@@ -183,7 +186,8 @@ class Playlist(APIView):
     def get(self, request, *args, **kwargs):
         if 'date' in request.GET.dict():
             date = request.GET.dict()['date']
-            json_input = read_json(date)
+            config_path = request.GET.dict()['path']
+            json_input = read_json(date, config_path)
 
             if json_input:
                 return Response(json_input)
@@ -195,8 +199,9 @@ class Playlist(APIView):
             return Response(status=400)
 
     def post(self, request, *args, **kwargs):
-        if 'data' in request.data:
-            return write_json(request.data['data'])
+        if 'data' in request.data and 'path' in request.query_params:
+            return write_json(request.data['data'],
+                              request.query_params['path'])
 
         return Response({'detail': 'Unspecified save error'})
 
@@ -226,13 +231,15 @@ class Media(APIView):
     def get(self, request, *args, **kwargs):
         if 'extensions' in request.GET.dict():
             extensions = request.GET.dict()['extensions']
+            config_path = request.GET.dict()['config_path']
 
             if 'path' in request.GET.dict() and request.GET.dict()['path']:
                 return Response({'tree': get_media_path(
-                    extensions, request.GET.dict()['path']
+                    extensions, config_path, request.GET.dict()['path']
                 )})
             elif 'path' in request.GET.dict():
-                return Response({'tree': get_media_path(extensions)})
+                return Response({'tree': get_media_path(extensions,
+                                                        config_path)})
             else:
                 return Response(status=204)
         else:
@@ -243,7 +250,8 @@ class FileUpload(APIView):
     parser_classes = [FileUploadParser]
 
     def put(self, request, filename, format=None):
-        root = read_yaml()['storage']['path']
+        root = read_yaml(
+            request.query_params['config_path'])['storage']['path']
         file_obj = request.data['file']
         filename = unquote(filename)
         path = unquote(request.query_params['path']).split('/')[1:]
@@ -258,7 +266,8 @@ class FileOperations(APIView):
 
     def delete(self, request, *args, **kwargs):
         if 'file' in request.GET.dict() and 'path' in request.GET.dict():
-            root = read_yaml()['storage']['path']
+            config_path = request.GET.dict()['config_path']
+            root = read_yaml(config_path)['storage']['path']
             _file = unquote(request.GET.dict()['file'])
             folder = unquote(request.GET.dict()['path']).lstrip('/')
             _path = os.path.join(*(folder.split(os.path.sep)[1:]))
@@ -280,7 +289,8 @@ class FileOperations(APIView):
 
     def post(self, request, *args, **kwargs):
         if 'folder' in request.data and 'path' in request.data:
-            root = read_yaml()['storage']['path']
+            config_path = request.data['config_path']
+            root = read_yaml(config_path)['storage']['path']
             folder = request.data['folder']
             _path = request.data['path'].split(os.path.sep)
             _path = '' if len(_path) == 1 else os.path.join(*_path[1:])
@@ -298,7 +308,8 @@ class FileOperations(APIView):
     def patch(self, request, *args, **kwargs):
         if 'path' in request.data and 'oldname' in request.data \
                 and 'newname' in request.data:
-            root = read_yaml()['storage']['path']
+            config_path = request.data['config_path']
+            root = read_yaml(config_path)['storage']['path']
             old_name = request.data['oldname']
             new_name = request.data['newname']
             _path = os.path.join(

@@ -17,23 +17,21 @@ from pymediainfo import MediaInfo
 from rest_framework.response import Response
 
 
-def read_yaml(path):
-    if os.path.isfile(path):
-        with open(path, 'r') as config_file:
+def read_yaml(config_path):
+    if os.path.isfile(config_path):
+        with open(config_path, 'r') as config_file:
             return yaml.safe_load(config_file)
 
 
-def write_yaml(data):
-    config = GuiSettings.objects.filter(id=1).values()[0]
-
-    if os.path.isfile(config['playout_config']):
-        with open(config['playout_config'], 'w') as outfile:
+def write_yaml(data, config_path):
+    if os.path.isfile(config_path):
+        with open(config_path, 'w') as outfile:
             yaml.dump(data, outfile, default_flow_style=False,
                       sort_keys=False, indent=4)
 
 
-def read_json(date):
-    config = read_yaml()['playlist']['path']
+def read_json(date, config_path):
+    config = read_yaml(config_path)['playlist']['path']
     y, m, d = date.split('-')
     input = os.path.join(config, y, m, '{}.json'.format(date))
     if os.path.isfile(input):
@@ -41,15 +39,15 @@ def read_json(date):
             return json.load(playlist)
 
 
-def write_json(data):
-    config = read_yaml()['playlist']['path']
+def write_json(data, config_path):
+    config = read_yaml(config_path)['playlist']['path']
     y, m, d = data['date'].split('-')
-    _path = os.path.join(config, y, m)
+    playlist = os.path.join(config, y, m)
 
-    if not os.path.isdir(_path):
-        os.makedirs(_path, exist_ok=True)
+    if not os.path.isdir(playlist):
+        os.makedirs(playlist, exist_ok=True)
 
-    output = os.path.join(_path, '{}.json'.format(data['date']))
+    output = os.path.join(playlist, '{}.json'.format(data['date']))
 
     if os.path.isfile(output) and data == read_json(data['date']):
         return Response(
@@ -61,8 +59,8 @@ def write_json(data):
     return Response({'detail': 'Playlist from {} saved'.format(data['date'])})
 
 
-def read_log(type, _date):
-    config = read_yaml()
+def read_log(type, _date, config_path):
+    config = read_yaml(config_path)
     log_path = config['logging']['log_path']
 
     if _date == datetime.now().strftime('%Y-%m-%d'):
@@ -75,8 +73,8 @@ def read_log(type, _date):
             return log.read().strip()
 
 
-def send_message(data):
-    config = read_yaml()
+def send_message(data, config_path):
+    config = read_yaml(config_path)
 
     if settings.USE_SOCKET:
         address = settings.SOCKET_IP
@@ -310,11 +308,11 @@ def get_video_duration(clip):
     return duration
 
 
-def get_path(input):
+def get_path(input, config_path):
     """
     return path and prevent breaking out of media root
     """
-    config = read_yaml()
+    config = read_yaml(config_path)
     media_root_list = config['storage']['path'].strip('/').split('/')
     media_root_list.pop()
     media_root = '/' + '/'.join(media_root_list)
@@ -328,8 +326,8 @@ def get_path(input):
     return media_root, input
 
 
-def get_media_path(extensions, _dir=''):
-    config = read_yaml()
+def get_media_path(extensions, config_path, _dir=''):
+    config = read_yaml(config_path)
     media_folder = config['storage']['path']
     extensions = extensions.split(',')
     playout_extensions = config['storage']['extensions']
