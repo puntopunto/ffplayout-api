@@ -1,11 +1,12 @@
 import json
 import os
 import re
-import socket
+import signal
 from datetime import datetime
 from platform import uname
 from subprocess import PIPE, STDOUT, run
 from time import sleep
+from xmlrpc.client import ServerProxy
 
 import psutil
 import yaml
@@ -15,6 +16,12 @@ from django.conf import settings
 from natsort import natsorted
 from pymediainfo import MediaInfo
 from rest_framework.response import Response
+
+
+def get_gui_config(index):
+    gui_settings = GuiSettings.objects.filter(id=index).values()
+
+    return gui_settings[0] if gui_settings else []
 
 
 def read_yaml(config_path):
@@ -49,7 +56,7 @@ def write_json(data, config_path):
 
     output = os.path.join(playlist, '{}.json'.format(data['date']))
 
-    if os.path.isfile(output) and data == read_json(data['date']):
+    if os.path.isfile(output) and data == read_json(data['date'], config_path):
         return Response(
             {'detail': 'Playlist from {} already exists'.format(data['date'])})
 
@@ -161,39 +168,54 @@ class PlayoutService:
         return self.proc.replace('\n', '')
 
 
-def playout_socket(cmd):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((settings.SOCKET_IP, settings.SOCKET_PORT))
+class EngineControl:
+    def __init__(self):
+        self.engine = None
+        self.server = ServerProxy(
+            f'http://{settings.SOCKET_USER}:{settings.SOCKET_PASS}'
+            f'@{settings.SOCKET_IP}:{settings.SOCKET_PORT}/RPC2')
+        self.process = None
 
-    status = 404
+        try:
+            self.proc_list = self.server.supervisor.getAllProcessInfo()
+        except Exception:
+            self.proc_list = []
 
-    try:
-        if cmd in ['start', 'stop', 'restart', 'reload']:
-            sock.sendall(str.encode(cmd))
+    def get_process(self, engine):
+        self.engine = engine
+        self.process = None
 
-            if len(cmd) > 0:
-                data = sock.recv(3).decode('utf-8').strip()
-                status = data
-        elif cmd == 'status':
-            sock.sendall(str.encode(cmd))
+        for proc in self.proc_list:
+            if engine == proc.get('name'):
+                self.process = proc
+                break
 
-            if len(cmd) > 0:
-                data = sock.recv(8).decode('utf-8').strip()
+    def start(self):
+        if self.process and self.process.get('statename') == 'STOPPED':
+            return self.server.supervisor.startProcess(self.engine)
 
-                if data in ['RUNNING', 'STARTING']:
-                    status = 'active'
-                else:
-                    status = 'stopped'
-    finally:
-        sock.close()
+    def stop(self):
+        if self.process and self.process.get('statename') == 'RUNNING':
+            return self.server.supervisor.stopProcess(self.engine)
 
-    return status
+    def restart(self):
+        if self.process and self.process.get('statename') == 'STOPPED':
+            self.server.supervisor.stopProcess(self.engine)
+
+        return self.server.supervisor.startProcess(self.engine)
+
+    def reload(self):
+        if self.process:
+            os.kill(self.process.get('pid'), signal.SIGHUP)
+
+    def status(self):
+        if self.process:
+            return self.process.get('statename')
 
 
 class SystemStats:
     def __init__(self):
-        gui_settings = GuiSettings.objects.filter(id=1).values()
-        self.config = gui_settings[0] if gui_settings else []
+        self.config = get_gui_config(1)
 
     def all(self):
         if self.config:
@@ -308,20 +330,19 @@ def get_video_duration(clip):
     return duration
 
 
-def get_path(input, config_path):
+def get_path(input, media_folder):
     """
     return path and prevent breaking out of media root
     """
-    config = read_yaml(config_path)
-    media_root_list = config['storage']['path'].strip('/').split('/')
+    media_root_list = media_folder.strip('/').split('/')
     media_root_list.pop()
     media_root = '/' + '/'.join(media_root_list)
 
     if input:
         input = os.path.abspath(os.path.join(media_root, input.strip('/')))
 
-    if not input.startswith(config['storage']['path']):
-        input = os.path.join(config['storage']['path'], input.strip('/'))
+    if not input.startswith(media_folder):
+        input = os.path.join(media_folder, input.strip('/'))
 
     return media_root, input
 
@@ -332,7 +353,7 @@ def get_media_path(extensions, config_path, _dir=''):
     extensions = extensions.split(',')
     playout_extensions = config['storage']['extensions']
     gui_extensions = [x for x in extensions if x not in playout_extensions]
-    media_root, search_dir = get_path(_dir)
+    media_root, search_dir = get_path(_dir, media_folder)
 
     for root, dirs, files in os.walk(search_dir, topdown=True):
         root = root.rstrip('/')

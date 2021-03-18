@@ -13,9 +13,9 @@ from rest_framework.parsers import FileUploadParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .utils import (PlayoutService, SystemStats, get_media_path,
-                    playout_socket, read_json, read_log, read_yaml,
-                    send_message, write_json, write_yaml)
+from .utils import (EngineControl, PlayoutService, SystemStats, get_media_path,
+                    read_json, read_log, read_yaml, send_message, write_json,
+                    write_yaml)
 
 
 class CurrentUserView(APIView):
@@ -117,20 +117,17 @@ class SystemCtl(APIView):
     or over a socket connecting
     """
 
-    # TODO: change to supervisor control
-
     def post(self, request, *args, **kwargs):
         if 'run' in request.data:
             if settings.USE_SOCKET:
-                return self.socket(request.data['run'])
+                return self.rpc_socket(request.data['run'],
+                                       request.data['engine'])
             else:
                 return self.systemd(request.data['run'])
 
         return Response(status=404)
 
-    def systemd(self, cmd):
-        service = PlayoutService()
-
+    def run_cmd(self, service, cmd):
         if cmd == 'start':
             service.start()
             return Response(status=200)
@@ -149,14 +146,14 @@ class SystemCtl(APIView):
         else:
             return Response(status=400)
 
-    def socket(self, cmd):
-        sock = playout_socket(cmd)
-        if sock in ['active', 'stopped']:
-            return Response({"data": sock})
-        elif sock == '200':
-            return Response(status=200)
-        else:
-            return Response(status=400)
+    def systemd(self, cmd):
+        return self.run_cmd(PlayoutService(), cmd)
+
+    def rpc_socket(self, cmd, engine):
+        sock = EngineControl()
+        sock.get_process(engine)
+
+        return self.run_cmd(sock, cmd)
 
 
 class LogReader(APIView):
@@ -186,7 +183,7 @@ class Playlist(APIView):
     def get(self, request, *args, **kwargs):
         if 'date' in request.GET.dict():
             date = request.GET.dict()['date']
-            config_path = request.GET.dict()['path']
+            config_path = request.GET.dict()['config_path']
             json_input = read_json(date, config_path)
 
             if json_input:
@@ -199,11 +196,11 @@ class Playlist(APIView):
             return Response(status=400)
 
     def post(self, request, *args, **kwargs):
-        if 'data' in request.data and 'path' in request.query_params:
+        if 'data' in request.data and 'config_path' in request.data:
             return write_json(request.data['data'],
-                              request.query_params['path'])
+                              request.data['config_path'])
 
-        return Response({'detail': 'Unspecified save error'})
+        return Response({'detail': 'Unspecified save error'}, status=400)
 
 
 class Statistics(APIView):

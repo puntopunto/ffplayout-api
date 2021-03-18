@@ -141,11 +141,13 @@ DRAW_TEXT_NODE = 'Parsed_drawtext_2'
 REQUEST_TIMEOUT = 1000
 
 ###############################################################################
-# controlling of the engine over systemd unit, or socket
+# controlling of the engine over supervisord xmlrpclib
 # use_socker False switch to systemd
-USE_SOCKET = False
-SOCKET_IP = '127.0.0.1'
-SOCKET_PORT = 64233
+USE_SOCKET = True
+SOCKET_IP = 'localhost'
+SOCKET_PORT = 9011
+SOCKET_USER = 'ffplayout'
+SOCKET_PASS = 'hsF0wQkl5zopEy1mBlT3g'
 
 ###############################################################################
 # srs streaming server
