@@ -4,7 +4,7 @@
     "fields": {
         "channel": "Channel 1",
         "player_url": "http://localhost/live/stream.m3u8",
-        "playout_config": "/etc/ffplayout/ffplayout.yml",
+        "playout_config": "/etc/ffplayout/ffplayout-001.yml",
         "net_interface": "lo",
         "media_disk": "/",
         "extra_extensions": ".jpg,.jpeg,.png"
