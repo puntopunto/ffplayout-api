@@ -1,5 +1,6 @@
 import os
 import shutil
+from time import sleep
 from urllib.parse import unquote
 
 from apps.api_player.models import GuiSettings, MessengePresets
@@ -47,11 +48,24 @@ class GuiSettingsViewSet(viewsets.ModelViewSet):
 
     def destroy(self, request, *args, **kwargs):
         obj = GuiSettings.objects.get(id=kwargs['pk'])
+        service_name = os.path.basename(obj.engine_service).split('.')[0]
 
         if os.path.isfile(obj.engine_service):
             os.remove(obj.engine_service)
         if os.path.isfile(obj.playout_config):
             os.remove(obj.playout_config)
+
+        engine = EngineControl()
+        engine.get_process(service_name)
+        engine.stop()
+        count = 0
+
+        while engine.status().lower() != 'stopped' and count < 10:
+            sleep(0.5)
+            count += 1
+
+        if engine.status().lower() == 'stopped':
+            engine.remove_process(service_name)
 
         return super(
             GuiSettingsViewSet, self).destroy(request, *args, **kwargs)

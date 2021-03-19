@@ -190,26 +190,35 @@ class EngineControl:
                 break
 
     def start(self):
-        if self.process and self.process.get('statename') == 'STOPPED':
+        if not self.process:
+            self.add_process()
+        elif self.status() == 'STOPPED':
             return self.server.supervisor.startProcess(self.engine)
 
     def stop(self):
         if self.process and self.process.get('statename') == 'RUNNING':
-            return self.server.supervisor.stopProcess(self.engine)
+            return self.server.supervisor.stopProcessGroup(self.engine)
 
     def restart(self):
-        if self.process and self.process.get('statename') == 'STOPPED':
-            self.server.supervisor.stopProcess(self.engine)
-
-        return self.server.supervisor.startProcess(self.engine)
+        self.stop()
+        sleep(2)
+        self.start()
 
     def reload(self):
         if self.process:
-            os.kill(self.process.get('pid'), signal.SIGHUP)
+            return self.server.supervisor.signalProcess(self.engine,
+                                                        signal.SIGHUP)
+
+    def add_process(self):
+        return self.server.supervisor.addProcessGroup(self.engine)
+
+    def remove_process(self, engine):
+        return self.server.supervisor.removeProcessGroup(engine)
 
     def status(self):
         if self.process:
-            return self.process.get('statename')
+            info = self.server.supervisor.getProcessInfo(self.engine)
+            return info.get('statename')
 
 
 class SystemStats:
