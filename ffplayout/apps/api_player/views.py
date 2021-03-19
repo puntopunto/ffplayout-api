@@ -196,9 +196,15 @@ class Playlist(APIView):
             return Response(status=400)
 
     def post(self, request, *args, **kwargs):
-        if 'data' in request.data and 'config_path' in request.data:
-            return write_json(request.data['data'],
-                              request.data['config_path'])
+        if 'data' in request.data:
+            if 'config_path' in request.data:
+                return write_json(request.data['data'],
+                                  request.data['config_path'])
+            if 'delete' in request.data['data']:
+                if os.path.isfile(request.data['data']['delete']):
+                    os.remove(request.data['data']['delete'])
+
+                return Response(status=200)
 
         return Response({'detail': 'Unspecified save error'}, status=400)
 
