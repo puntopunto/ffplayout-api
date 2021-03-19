@@ -31,10 +31,9 @@ def read_yaml(config_path):
 
 
 def write_yaml(data, config_path):
-    if os.path.isfile(config_path):
-        with open(config_path, 'w') as outfile:
-            yaml.dump(data, outfile, default_flow_style=False,
-                      sort_keys=False, indent=4)
+    with open(config_path, 'w') as outfile:
+        yaml.dump(data, outfile, default_flow_style=False,
+                  sort_keys=False, indent=4)
 
 
 def read_json(date, config_path):
