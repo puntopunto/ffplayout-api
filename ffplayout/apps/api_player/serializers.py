@@ -91,6 +91,8 @@ class GuiSettingsSerializer(serializers.ModelSerializer):
 
             yaml_obj['logging']['log_path'] = log_path
             yaml_obj['playlist']['path'] = play_path
+            yaml_obj['out']['stream_output'] = \
+                yaml_obj['out']['stream_output'] + suffix
 
             if not os.path.isdir(log_path):
                 os.makedirs(log_path, exist_ok=True)
