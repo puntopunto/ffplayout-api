@@ -18,7 +18,10 @@ def create_engine_config(_path, yml_config):
 
     for (key, value) in items:
         if key == 'command':
-            value = f'./venv/bin/python3 ffplayout.py -c {yml_config}'
+            value = ('/opt/ffplayout-engine/venv/bin/python ffplayout.py '
+                     f'-c {yml_config}')
+        elif key == 'stdout_logfile':
+            value = f'/var/log/ffplayout/engine-{suffix}.log'
         config.set(f'program:engine-{suffix}', key, value)
 
     config.remove_section('program:engine-001')
