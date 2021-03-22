@@ -24,7 +24,6 @@ class Publish(APIView):
             return Response(status=404)
 
     def post(self, request, *args, **kwargs):
-        print(request.data)
         # check api auth
         if request.query_params['key'] != settings.SRS_KEY:
             return Response({"code": 403, "data": None})
