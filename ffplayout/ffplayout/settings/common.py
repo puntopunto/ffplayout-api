@@ -151,7 +151,7 @@ SOCKET_PASS = 'hsF0wQkl5zopEy1mBlT3g'
 
 ###############################################################################
 # srs streaming server
-SRS_IP = 'srs'
+SRS_IP = '127.0.0.1'
 SRS_API_PORT = 1985
 
 # srs rtmp server API key
