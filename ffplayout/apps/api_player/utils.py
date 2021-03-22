@@ -228,12 +228,6 @@ class SystemControl:
     or over a socket connecting
     """
 
-    def __init__(self, cmd, engine=None):
-        if settings.USE_SOCKET:
-            self.rpc_socket(cmd, engine)
-        else:
-            self.systemd(cmd)
-
     def run_cmd(self, service, cmd):
         if cmd == 'start':
             service.start()
@@ -260,6 +254,12 @@ class SystemControl:
         sock.get_process(engine)
 
         return self.run_cmd(sock, cmd)
+
+    def run_service(self, cmd, engine=None):
+        if settings.USE_SOCKET:
+            return self.rpc_socket(cmd, engine)
+        else:
+            return self.systemd(cmd)
 
 
 class SystemStats:

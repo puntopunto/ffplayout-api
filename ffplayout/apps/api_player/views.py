@@ -136,11 +136,12 @@ class SystemCtl(APIView):
 
     def post(self, request, *args, **kwargs):
         if 'run' in request.data:
+            system_ctl = SystemControl()
             if settings.USE_SOCKET:
-                control = SystemControl(request.data['run'],
-                                        request.data['engine'])
+                control = system_ctl.run_service(request.data['run'],
+                                                 request.data['engine'])
             else:
-                control = SystemControl(request.data['run'])
+                control = system_ctl.run_service(request.data['run'])
 
             if isinstance(control, int):
                 return Response(status=control)

@@ -36,7 +36,8 @@ def kick_streams():
                                                         settings.SRS_API_PORT,
                                                         client['id']))
 
-            SystemControl('stop', engine)
+            system_ctl = SystemControl()
+            system_ctl.run_service('stop', engine)
 
 
 def start_stream(last):
