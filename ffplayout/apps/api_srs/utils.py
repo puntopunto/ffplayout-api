@@ -1,7 +1,7 @@
-import socket
+import re
 
 import requests
-
+from api_player.utils import SystemControl
 from django.conf import settings
 
 
@@ -9,10 +9,10 @@ def get_publisher():
     """
     get a list of all publishers
     """
+    publisher = []
     req = requests.get(
         'http://{}:{}/api/v1/clients/'.format(settings.SRS_IP,
                                               settings.SRS_API_PORT)).json()
-    publisher = []
 
     for client in req['clients']:
         if client['publish']:
@@ -27,6 +27,8 @@ def kick_streams():
     """
     for client in get_publisher():
         stream = client['url'].split('/')[-1]
+        suffix = re.findall(r'\d{3}', client['url'])
+        engine = f'engine-{suffix}' if suffix else 'engine-001'
 
         if stream == settings.LOW_PRIORITY_STREAM:
             requests.delete(
@@ -34,25 +36,15 @@ def kick_streams():
                                                         settings.SRS_API_PORT,
                                                         client['id']))
 
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.connect((settings.SOCKET_IP, settings.SOCKET_PORT))
-
-            try:
-                sock.sendall(b'stop')
-            finally:
-                sock.close()
+            SystemControl('stop', engine)
 
 
 def start_stream(last):
     """
     when last unpublished stream was the high priority stream,
     start the ffplayout-engine
+
+    LIMITATION: for now only first engine-001 can be startet
     """
     if last == settings.HIGH_PRIORITY_STREAM:
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((settings.SOCKET_IP, settings.SOCKET_PORT))
-
-        try:
-            sock.sendall(b'start')
-        finally:
-            sock.close()
+        SystemControl('start', 'engine-001')
