@@ -134,7 +134,7 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-class PlayoutService:
+class EngineControlSystemD:
     def __init__(self):
         self.service = ['ffplayout-engine.service']
         self.cmd = ['sudo', '/bin/systemctl']
@@ -167,7 +167,7 @@ class PlayoutService:
         return self.proc.replace('\n', '')
 
 
-class EngineControl:
+class EngineControlSocket:
     def __init__(self):
         self.engine = None
         self.server = ServerProxy(
@@ -219,6 +219,46 @@ class EngineControl:
         if self.process:
             info = self.server.supervisor.getProcessInfo(self.engine)
             return info.get('statename')
+
+
+class SystemControl:
+    """
+    controlling the ffplayout-engine over systemd services,
+    or over a socket connecting
+    """
+
+    def __init__(self, cmd, engine=None):
+        if settings.USE_SOCKET:
+            return self.rpc_socket(cmd, engine)
+        else:
+            return self.systemd(cmd)
+
+    def run_cmd(self, service, cmd):
+        if cmd == 'start':
+            service.start()
+            return 200
+        elif cmd == 'stop':
+            service.stop()
+            return 200
+        elif cmd == 'reload':
+            service.reload()
+            return 200
+        elif cmd == 'restart':
+            service.restart()
+            return 200
+        elif cmd == 'status':
+            return {"data": service.status()}
+        else:
+            return 400
+
+    def systemd(self, cmd):
+        return self.run_cmd(EngineControlSystemD(), cmd)
+
+    def rpc_socket(self, cmd, engine):
+        sock = EngineControlSocket()
+        sock.get_process(engine)
+
+        return self.run_cmd(sock, cmd)
 
 
 class SystemStats:
