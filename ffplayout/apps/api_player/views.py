@@ -14,9 +14,9 @@ from rest_framework.parsers import FileUploadParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .utils import (EngineControl, PlayoutService, SystemStats, get_media_path,
-                    read_json, read_log, read_yaml, send_message, write_json,
-                    write_yaml)
+from .utils import (EngineControlSocket, SystemControl, SystemStats,
+                    get_media_path, read_json, read_log, read_yaml,
+                    send_message, write_json, write_yaml)
 
 
 class CurrentUserView(APIView):
@@ -55,17 +55,18 @@ class GuiSettingsViewSet(viewsets.ModelViewSet):
         if os.path.isfile(obj.playout_config):
             os.remove(obj.playout_config)
 
-        engine = EngineControl()
-        engine.get_process(service_name)
-        engine.stop()
-        count = 0
+        if settings.USE_SOCKET:
+            engine = EngineControlSocket()
+            engine.get_process(service_name)
+            engine.stop()
+            count = 0
 
-        while engine.status().lower() != 'stopped' and count < 10:
-            sleep(0.5)
-            count += 1
+            while engine.status().lower() != 'stopped' and count < 10:
+                sleep(0.5)
+                count += 1
 
-        if engine.status().lower() == 'stopped':
-            engine.remove_process(service_name)
+            if engine.status().lower() == 'stopped':
+                engine.remove_process(service_name)
 
         return super(
             GuiSettingsViewSet, self).destroy(request, *args, **kwargs)
@@ -134,40 +135,17 @@ class SystemCtl(APIView):
     def post(self, request, *args, **kwargs):
         if 'run' in request.data:
             if settings.USE_SOCKET:
-                return self.rpc_socket(request.data['run'],
-                                       request.data['engine'])
+                control = SystemControl(request.data['run'],
+                                        request.data['engine'])
             else:
-                return self.systemd(request.data['run'])
+                control = SystemControl(request.data['run'])
+
+            if isinstance(control, int):
+                return Response(status=control)
+            else:
+                return Response(control)
 
         return Response(status=404)
-
-    def run_cmd(self, service, cmd):
-        if cmd == 'start':
-            service.start()
-            return Response(status=200)
-        elif cmd == 'stop':
-            service.stop()
-            return Response(status=200)
-        elif cmd == 'reload':
-            service.reload()
-            return Response(status=200)
-        elif cmd == 'restart':
-            service.restart()
-            return Response(status=200)
-        elif cmd == 'status':
-            status = service.status()
-            return Response({"data": status})
-        else:
-            return Response(status=400)
-
-    def systemd(self, cmd):
-        return self.run_cmd(PlayoutService(), cmd)
-
-    def rpc_socket(self, cmd, engine):
-        sock = EngineControl()
-        sock.get_process(engine)
-
-        return self.run_cmd(sock, cmd)
 
 
 class LogReader(APIView):
