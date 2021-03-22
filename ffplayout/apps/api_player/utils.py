@@ -230,9 +230,9 @@ class SystemControl:
 
     def __init__(self, cmd, engine=None):
         if settings.USE_SOCKET:
-            return self.rpc_socket(cmd, engine)
+            self.rpc_socket(cmd, engine)
         else:
-            return self.systemd(cmd)
+            self.systemd(cmd)
 
     def run_cmd(self, service, cmd):
         if cmd == 'start':
