@@ -145,7 +145,7 @@ REQUEST_TIMEOUT = 1000
 # use_socker False switch to systemd
 USE_SOCKET = True
 SOCKET_IP = 'localhost'
-SOCKET_PORT = 9011
+SOCKET_PORT = 9001
 SOCKET_USER = 'ffplayout'
 SOCKET_PASS = 'hsF0wQkl5zopEy1mBlT3g'
 
