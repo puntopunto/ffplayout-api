@@ -102,12 +102,14 @@ class MessageSender(APIView):
 class Config(APIView):
     """
     read and write config from ffplayout engine
-    for reading endpoint is: http://127.0.0.1:8000/api/player/config/?config
+    for reading endpoint is:
+        http://127.0.0.1:8000/api/player/config/?configPlayout
     """
     parser_classes = [JSONParser]
 
     def get(self, request, *args, **kwargs):
-        if 'configPlayout' in request.GET.dict():
+        if 'configPlayout' in request.GET.dict() and \
+                'path' in request.GET.dict():
             path = request.GET.dict()['path']
             yaml_input = read_yaml(path)
 
