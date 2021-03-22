@@ -1,7 +1,7 @@
 import re
 
 import requests
-from api_player.utils import SystemControl
+from apps.api_player.utils import SystemControl
 from django.conf import settings
 
 
