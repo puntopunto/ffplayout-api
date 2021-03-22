@@ -67,16 +67,17 @@ def write_json(data, config_path):
 
 def read_log(type, _date, config_path):
     config = read_yaml(config_path)
-    log_path = config['logging']['log_path']
+    if config and config.get('logging'):
+        log_path = config['logging']['log_path']
 
-    if _date == datetime.now().strftime('%Y-%m-%d'):
-        log_file = os.path.join(log_path, '{}.log'.format(type))
-    else:
-        log_file = os.path.join(log_path, '{}.log.{}'.format(type, _date))
+        if _date == datetime.now().strftime('%Y-%m-%d'):
+            log_file = os.path.join(log_path, '{}.log'.format(type))
+        else:
+            log_file = os.path.join(log_path, '{}.log.{}'.format(type, _date))
 
-    if os.path.isfile(log_file):
-        with open(log_file, 'r') as log:
-            return log.read().strip()
+        if os.path.isfile(log_file):
+            with open(log_file, 'r') as log:
+                return log.read().strip()
 
 
 def send_message(data, config_path):
