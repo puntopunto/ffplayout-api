@@ -48,4 +48,5 @@ def start_stream(last):
     LIMITATION: for now only first engine-001 can be startet
     """
     if last == settings.HIGH_PRIORITY_STREAM:
-        SystemControl('start', 'engine-001')
+        system_ctl = SystemControl()
+        system_ctl.run_service('start', 'engine-001')
