@@ -269,7 +269,7 @@ class SystemStats:
     def all(self):
         if self.config:
             return {
-                **self.system(),
+                **self.system(), **self.timezone(),
                 **self.cpu(), **self.ram(), **self.swap(),
                 **self.disk(), **self.net(), **self.net_speed()
             }
@@ -279,6 +279,11 @@ class SystemStats:
             'system': uname().system,
             'node': uname().node,
             'machine': uname().machine
+        }
+
+    def timezone(self):
+        return {
+            'timezone': settings.TIME_ZONE
         }
 
     def cpu(self):
