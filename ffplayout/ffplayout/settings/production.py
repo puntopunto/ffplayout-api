@@ -1,7 +1,7 @@
 from ffplayout.settings.common import *
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '---a-very-important-secret-key:-generate-it-new---'
+SECRET_KEY = '---a-very-important-secret-key-_-generate-it-new---'
 DEBUG = False
 
 ALLOWED_HOSTS = ['localhost']
