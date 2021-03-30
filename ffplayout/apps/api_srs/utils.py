@@ -45,7 +45,7 @@ def start_stream(last):
     when last unpublished stream was the high priority stream,
     start the ffplayout-engine
 
-    LIMITATION: for now only first engine-001 can be startet
+    LIMITATION: for now only first engine-001 can be started
     """
     if last == settings.HIGH_PRIORITY_STREAM:
         system_ctl = SystemControl()

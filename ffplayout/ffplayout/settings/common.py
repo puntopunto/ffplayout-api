@@ -75,16 +75,20 @@ DATABASES = {}
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'NAME': ('django.contrib.auth.password_validation.'
+                 'UserAttributeSimilarityValidator'),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'NAME':
+            'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        'NAME':
+            'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        'NAME':
+            'django.contrib.auth.password_validation.NumericPasswordValidator',
     }
 ]
 
@@ -159,7 +163,7 @@ SRS_KEY = 'fdO12mlKgp0H4z3sG8ybc5Du9wQFi77vN'
 
 # rtmp authentication
 RTMP_KEY = 'fdO12mlKgp0H4z3sG8ybc5Du9wQFi77vN'
-# set which rtmp stream have highes priority (low priority get kicked out)
+# set which rtmp stream have highest priority (low priority get kicked out)
 # stream is the last part of the rtmp address: rtmp://example.org/live/[stream]
 HIGH_PRIORITY_STREAM = 'event'
 LOW_PRIORITY_STREAM = 'tv'
