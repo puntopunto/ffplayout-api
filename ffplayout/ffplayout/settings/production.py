@@ -4,7 +4,7 @@ from ffplayout.settings.common import *
 SECRET_KEY = '---a-very-important-secret-key-_-generate-it-new---'
 DEBUG = False
 
-ALLOWED_HOSTS = ['localhost']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 # REST API
 REST_FRAMEWORK = {
@@ -22,4 +22,5 @@ REST_FRAMEWORK = {
 
 CORS_ORIGIN_WHITELIST = (
     'http://ffplayout.local',
+    'http://127.0.0.1'
 )
