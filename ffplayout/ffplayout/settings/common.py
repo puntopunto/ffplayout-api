@@ -112,16 +112,16 @@ USE_TZ = True
 # dynamic app loader
 APPS_DIR = os.path.join(BASE_DIR, 'apps/')
 
-for dir in os.listdir(APPS_DIR):
-    if os.path.isdir(os.path.join(APPS_DIR, dir)):
-        app_name = 'apps.{}'.format(dir)
+for app in os.listdir(APPS_DIR):
+    if os.path.isdir(os.path.join(APPS_DIR, app)):
+        APP_NAME = 'apps.{}'.format(app)
 
-        if app_name not in INSTALLED_APPS:
+        if APP_NAME not in INSTALLED_APPS:
             # add app to installed apps
-            INSTALLED_APPS += (app_name, )
+            INSTALLED_APPS += (APP_NAME, )
 
-            if os.path.isfile(os.path.join(APPS_DIR, dir, 'settings.py')):
-                db = locate('{}.settings.DATABASES'.format(app_name))
+            if os.path.isfile(os.path.join(APPS_DIR, app, 'settings.py')):
+                db = locate('{}.settings.DATABASES'.format(APP_NAME))
 
                 for key in db:
                     if key not in DATABASES:

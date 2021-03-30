@@ -18,113 +18,137 @@ from pymediainfo import MediaInfo
 from rest_framework.response import Response
 
 
-def get_gui_config(index):
+def gui_config(index):
     gui_settings = GuiSettings.objects.filter(id=index).values()
 
-    return gui_settings[0] if gui_settings else []
+    return gui_settings[0] if gui_settings else {}
 
 
-def read_yaml(config_path):
-    if os.path.isfile(config_path):
-        with open(config_path, 'r') as config_file:
+def read_yaml(channel):
+    config = gui_config(channel)
+
+    if config.get('playout_config') and \
+            os.path.isfile(config['playout_config']):
+        with open(config['playout_config'], 'r') as config_file:
             return yaml.safe_load(config_file)
 
-
-def write_yaml(data, config_path):
-    with open(config_path, 'w') as outfile:
-        yaml.dump(data, outfile, default_flow_style=False,
-                  sort_keys=False, indent=4)
+    return None
 
 
-def read_json(date, config_path):
-    config = read_yaml(config_path)['playlist']['path']
-    y, m, d = date.split('-')
-    input = os.path.join(config, y, m, '{}.json'.format(date))
-    if os.path.isfile(input):
-        with open(input, 'r') as playlist:
-            return json.load(playlist)
+def write_yaml(data, channel):
+    config = gui_config(channel)
+
+    if config.get('playout_config'):
+        with open(config['playout_config'], 'w') as outfile:
+            yaml.dump(data, outfile, default_flow_style=False,
+                      sort_keys=False, indent=4)
 
 
-def write_json(data, config_path):
-    config = read_yaml(config_path)['playlist']['path']
-    y, m, d = data['date'].split('-')
-    playlist = os.path.join(config, y, m)
+def read_json(date_, channel):
+    config = read_yaml(channel)
 
-    if not os.path.isdir(playlist):
-        os.makedirs(playlist, exist_ok=True)
+    if config:
+        playlist_path = config['playlist']['path']
+        year, month, _ = date_.split('-')
+        input_ = os.path.join(playlist_path, year, month, f'{date_}.json')
 
-    output = os.path.join(playlist, '{}.json'.format(data['date']))
+        if os.path.isfile(input_):
+            with open(input_, 'r') as playlist:
+                return json.load(playlist)
 
-    if os.path.isfile(output) and data == read_json(data['date'], config_path):
-        return Response(
-            {'detail': 'Playlist from {} already exists'.format(data['date'])})
-
-    with open(output, "w") as outfile:
-        json.dump(data, outfile, indent=4)
-
-    return Response({'detail': 'Playlist from {} saved'.format(data['date'])})
+    return None
 
 
-def read_log(type, _date, config_path):
-    config = read_yaml(config_path)
+def write_json(data, channel):
+    config = read_yaml(channel)
+
+    if config:
+        playlist_path = config['playlist']['path']
+        year, month, _ = data['date'].split('-')
+        playlist = os.path.join(playlist_path, year, month)
+
+        if not os.path.isdir(playlist):
+            os.makedirs(playlist, exist_ok=True)
+
+        output = os.path.join(playlist, f'{data["date"]}.json')
+
+        if os.path.isfile(output) and data == read_json(data['date'], channel):
+            return Response(
+                {'detail': f'Playlist from {data["date"]} already exists'})
+
+        with open(output, "w") as outfile:
+            json.dump(data, outfile, indent=4)
+
+        return Response({'detail': f'Playlist from {data["date"]} saved'})
+
+    return Response({'detail': f'Saving playlist from {data["date"]} failed!'})
+
+
+def read_log(type_, date_, channel):
+    config = read_yaml(channel)
     if config and config.get('logging'):
         log_path = config['logging']['log_path']
 
-        if _date == datetime.now().strftime('%Y-%m-%d'):
-            log_file = os.path.join(log_path, '{}.log'.format(type))
+        if date_ == datetime.now().strftime('%Y-%m-%d'):
+            log_file = os.path.join(log_path, '{}.log'.format(type_))
         else:
-            log_file = os.path.join(log_path, '{}.log.{}'.format(type, _date))
+            log_file = os.path.join(log_path, '{}.log.{}'.format(type_, date_))
 
         if os.path.isfile(log_file):
             with open(log_file, 'r') as log:
                 return log.read().strip()
 
+    return None
 
-def send_message(data, config_path):
-    config = read_yaml(config_path)
 
-    if settings.USE_SOCKET:
-        address = settings.SOCKET_IP
-        port = config['text']['bind_address'].split(':')[1]
-    else:
-        address, port = config['text']['bind_address'].split(':')
+def send_message(data, channel):
+    config = read_yaml(channel)
 
-    context = zmq.Context(1)
-    client = context.socket(zmq.REQ)
-    client.connect('tcp://{}:{}'.format(address, port))
-
-    poll = zmq.Poller()
-    poll.register(client, zmq.POLLIN)
-
-    request = ''
-    reply_msg = ''
-
-    for key, value in data.items():
-        request += "{}='{}':".format(key, value)
-
-    request = "{} reinit {}".format(
-        settings.DRAW_TEXT_NODE, request.rstrip(':'))
-
-    client.send_string(request)
-
-    socks = dict(poll.poll(settings.REQUEST_TIMEOUT))
-
-    if socks.get(client) == zmq.POLLIN:
-        reply = client.recv()
-
-        if reply and reply.decode() == '0 Success':
-            reply_msg = reply.decode()
+    if config:
+        if settings.USE_SOCKET:
+            address = settings.SOCKET_IP
+            port = config['text']['bind_address'].split(':')[1]
         else:
-            reply_msg = reply.decode()
-    else:
-        reply_msg = 'No response from server'
+            address, port = config['text']['bind_address'].split(':')
 
-    client.setsockopt(zmq.LINGER, 0)
-    client.close()
-    poll.unregister(client)
+        context = zmq.Context(1)
+        client = context.socket(zmq.REQ)
+        client.connect('tcp://{}:{}'.format(address, port))
 
-    context.term()
-    return {'Success': reply_msg}
+        poll = zmq.Poller()
+        poll.register(client, zmq.POLLIN)
+
+        request = ''
+        reply_msg = ''
+
+        for key, value in data.items():
+            request += "{}='{}':".format(key, value)
+
+        request = "{} reinit {}".format(
+            settings.DRAW_TEXT_NODE, request.rstrip(':'))
+
+        client.send_string(request)
+
+        socks = dict(poll.poll(settings.REQUEST_TIMEOUT))
+
+        if socks.get(client) == zmq.POLLIN:
+            reply = client.recv()
+
+            if reply and reply.decode() == '0 Success':
+                reply_msg = reply.decode()
+            else:
+                reply_msg = reply.decode()
+        else:
+            reply_msg = 'No response from server'
+
+        client.setsockopt(zmq.LINGER, 0)
+        client.close()
+        poll.unregister(client)
+
+        context.term()
+        return {'Success': reply_msg}
+
+    return {'Failed': 'No config exists'}
 
 
 def sizeof_fmt(num, suffix='B'):
@@ -136,6 +160,10 @@ def sizeof_fmt(num, suffix='B'):
 
 
 class EngineControlSystemD:
+    """
+    class for controlling the systemd service from ffplayout-engine
+    """
+
     def __init__(self):
         self.service = ['ffplayout-engine.service']
         self.cmd = ['sudo', '/bin/systemctl']
@@ -143,7 +171,7 @@ class EngineControlSystemD:
 
     def run_cmd(self):
         self.proc = run(self.cmd + self.service, stdout=PIPE, stderr=STDOUT,
-                        encoding="utf-8").stdout
+                        check=True, encoding="utf-8").stdout
 
     def start(self):
         self.cmd.append('start')
@@ -169,6 +197,10 @@ class EngineControlSystemD:
 
 
 class EngineControlSocket:
+    """
+    class for controlling ffplayout-engine over supervisord socket
+    """
+
     def __init__(self):
         self.engine = None
         self.server = ServerProxy(
@@ -192,7 +224,7 @@ class EngineControlSocket:
 
     def start(self):
         if not self.process:
-            self.add_process()
+            return self.add_process()
         elif self.status() == 'STOPPED':
             return self.server.supervisor.startProcess(self.engine)
 
@@ -232,19 +264,19 @@ class SystemControl:
         if cmd == 'start':
             service.start()
             return 200
-        elif cmd == 'stop':
+        if cmd == 'stop':
             service.stop()
             return 200
-        elif cmd == 'reload':
+        if cmd == 'reload':
             service.reload()
             return 200
-        elif cmd == 'restart':
+        if cmd == 'restart':
             service.restart()
             return 200
-        elif cmd == 'status':
+        if cmd == 'status':
             return {"data": service.status()}
-        else:
-            return 400
+
+        return 400
 
     def systemd(self, cmd):
         return self.run_cmd(EngineControlSystemD(), cmd)
@@ -258,13 +290,17 @@ class SystemControl:
     def run_service(self, cmd, engine=None):
         if settings.USE_SOCKET:
             return self.rpc_socket(cmd, engine)
-        else:
-            return self.systemd(cmd)
+
+        return self.systemd(cmd)
 
 
 class SystemStats:
+    """
+    get system statistics
+    """
+
     def __init__(self):
-        self.config = get_gui_config(1)
+        self.config = gui_config(1)
 
     def all(self):
         if self.config:
@@ -384,7 +420,7 @@ def get_video_duration(clip):
     return duration
 
 
-def get_path(input, media_folder):
+def get_path(input_, media_folder):
     """
     return path and prevent breaking out of media root
     """
@@ -392,40 +428,44 @@ def get_path(input, media_folder):
     media_root_list.pop()
     media_root = '/' + '/'.join(media_root_list)
 
-    if input:
-        input = os.path.abspath(os.path.join(media_root, input.strip('/')))
+    if input_:
+        input_ = os.path.abspath(os.path.join(media_root, input_.strip('/')))
 
-    if not input.startswith(media_folder):
-        input = os.path.join(media_folder, input.strip('/'))
+    if not input_.startswith(media_folder):
+        input_ = os.path.join(media_folder, input_.strip('/'))
 
-    return media_root, input
+    return media_root, input_
 
 
-def get_media_path(extensions, config_path, _dir=''):
-    config = read_yaml(config_path)
-    media_folder = config['storage']['path']
-    extensions = extensions.split(',')
-    playout_extensions = config['storage']['extensions']
-    gui_extensions = [x for x in extensions if x not in playout_extensions]
-    media_root, search_dir = get_path(_dir, media_folder)
+def get_media_path(extensions, channel, _dir=''):
+    config = read_yaml(channel)
 
-    for root, dirs, files in os.walk(search_dir, topdown=True):
-        root = root.rstrip('/')
-        media_files = []
+    if config:
+        media_folder = config['storage']['path']
+        extensions = extensions.split(',')
+        playout_extensions = config['storage']['extensions']
+        gui_extensions = [x for x in extensions if x not in playout_extensions]
+        media_root, search_dir = get_path(_dir, media_folder)
 
-        for file in files:
-            ext = os.path.splitext(file)[1]
-            if ext in playout_extensions:
-                duration = get_video_duration(os.path.join(root, file))
-                media_files.append({'file': file, 'duration': duration})
-            elif ext in gui_extensions:
-                media_files.append({'file': file, 'duration': ''})
+        for root, dirs, files in os.walk(search_dir, topdown=True):
+            root = root.rstrip('/')
+            media_files = []
 
-        dirs = natsorted(dirs)
+            for file in files:
+                ext = os.path.splitext(file)[1]
+                if ext in playout_extensions:
+                    duration = get_video_duration(os.path.join(root, file))
+                    media_files.append({'file': file, 'duration': duration})
+                elif ext in gui_extensions:
+                    media_files.append({'file': file, 'duration': ''})
 
-        if root.strip('/') != media_folder.strip('/') or not dirs:
-            dirs.insert(0, '..')
+            dirs = natsorted(dirs)
 
-        root = re.sub(r'^{}'.format(media_root), '', root).strip('/')
+            if root.strip('/') != media_folder.strip('/') or not dirs:
+                dirs.insert(0, '..')
 
-        return [root, dirs, natsorted(media_files, key=lambda x: x['file'])]
+            root = re.sub(r'^{}'.format(media_root), '', root).strip('/')
+
+            return [root, dirs,
+                    natsorted(media_files, key=lambda x: x['file'])]
+    return []

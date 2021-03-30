@@ -93,7 +93,8 @@ class MessageSender(APIView):
 
     def post(self, request, *args, **kwargs):
         if 'data' in request.data:
-            response = send_message(request.data['data'])
+            response = send_message(request.data['data'],
+                                    request.data['channel'])
             return Response({"success": True, 'status': response})
 
         return Response({"success": False})
@@ -109,20 +110,20 @@ class Config(APIView):
 
     def get(self, request, *args, **kwargs):
         if 'configPlayout' in request.GET.dict() and \
-                'path' in request.GET.dict():
-            path = request.GET.dict()['path']
-            yaml_input = read_yaml(path)
+                'channel' in request.GET.dict():
+            channel = request.GET.dict()['channel']
+            yaml_input = read_yaml(channel)
 
             if yaml_input:
                 return Response(yaml_input)
-            else:
-                return Response(status=204)
-        else:
-            return Response(status=404)
+
+            return Response(status=204)
+
+        return Response(status=404)
 
     def post(self, request, *args, **kwargs):
-        if 'data' in request.data and 'path' in request.query_params:
-            write_yaml(request.data['data'], request.query_params['path'])
+        if 'data' in request.data and 'channel' in request.data:
+            write_yaml(request.data['data'], request.data['channel'])
             return Response(status=200)
 
         return Response(status=404)
@@ -154,11 +155,11 @@ class SystemCtl(APIView):
 class LogReader(APIView):
     def get(self, request, *args, **kwargs):
         if 'type' in request.GET.dict() and 'date' in request.GET.dict():
-            type = request.GET.dict()['type']
-            _date = request.GET.dict()['date']
-            config_path = request.GET.dict()['config_path']
+            type_ = request.GET.dict()['type']
+            date_ = request.GET.dict()['date']
+            channel = request.GET.dict()['channel']
 
-            log = read_log(type, _date, config_path)
+            log = read_log(type_, date_, channel)
 
             if log:
                 return Response({'log': log})
@@ -178,23 +179,23 @@ class Playlist(APIView):
     def get(self, request, *args, **kwargs):
         if 'date' in request.GET.dict():
             date = request.GET.dict()['date']
-            config_path = request.GET.dict()['config_path']
-            json_input = read_json(date, config_path)
+            channel = request.GET.dict()['channel']
+            json_input = read_json(date, channel)
 
             if json_input:
                 return Response(json_input)
-            else:
-                return Response({
-                    "success": False,
-                    "error": "Playlist from {} not found!".format(date)})
+
+            return Response({
+                "success": False,
+                "error": "Playlist from {} not found!".format(date)})
         else:
             return Response(status=400)
 
     def post(self, request, *args, **kwargs):
         if 'data' in request.data:
-            if 'config_path' in request.data:
+            if 'channel' in request.data:
                 return write_json(request.data['data'],
-                                  request.data['config_path'])
+                                  request.data['channel'])
             if 'delete' in request.data['data']:
                 if os.path.isfile(request.data['data']['delete']):
                     os.remove(request.data['data']['delete'])
@@ -229,19 +230,19 @@ class Media(APIView):
     def get(self, request, *args, **kwargs):
         if 'extensions' in request.GET.dict():
             extensions = request.GET.dict()['extensions']
-            config_path = request.GET.dict()['config_path']
+            channel = request.GET.dict()['channel']
 
             if 'path' in request.GET.dict() and request.GET.dict()['path']:
                 return Response({'tree': get_media_path(
-                    extensions, config_path, request.GET.dict()['path']
+                    extensions, channel, request.GET.dict()['path']
                 )})
-            elif 'path' in request.GET.dict():
-                return Response({'tree': get_media_path(extensions,
-                                                        config_path)})
-            else:
-                return Response(status=204)
-        else:
-            return Response(status=404)
+
+            if 'path' in request.GET.dict():
+                return Response({'tree': get_media_path(extensions, channel)})
+
+            return Response(status=204)
+
+        return Response(status=404)
 
 
 class FileUpload(APIView):
@@ -249,7 +250,7 @@ class FileUpload(APIView):
 
     def put(self, request, filename, format=None):
         root = read_yaml(
-            request.query_params['config_path'])['storage']['path']
+            request.query_params['channel'])['storage']['path']
         file_obj = request.data['file']
         filename = unquote(filename)
         path = unquote(request.query_params['path']).split('/')[1:]
@@ -264,59 +265,59 @@ class FileOperations(APIView):
 
     def delete(self, request, *args, **kwargs):
         if 'file' in request.GET.dict() and 'path' in request.GET.dict():
-            config_path = request.GET.dict()['config_path']
-            root = read_yaml(config_path)['storage']['path']
+            channel = request.GET.dict()['channel']
+            root = read_yaml(channel)['storage']['path']
             _file = unquote(request.GET.dict()['file'])
             folder = unquote(request.GET.dict()['path']).lstrip('/')
             _path = os.path.join(*(folder.split(os.path.sep)[1:]))
-            fullPath = os.path.join(root, _path)
+            full_path = os.path.join(root, _path)
 
             if not _file or _file == 'null':
-                if os.path.isdir(fullPath):
-                    shutil.rmtree(fullPath, ignore_errors=True)
+                if os.path.isdir(full_path):
+                    shutil.rmtree(full_path, ignore_errors=True)
                     return Response(status=200)
-                else:
-                    return Response(status=404)
-            elif os.path.isfile(os.path.join(fullPath, _file)):
-                os.remove(os.path.join(fullPath, _file))
-                return Response(status=200)
-            else:
+
                 return Response(status=404)
-        else:
+
+            if os.path.isfile(os.path.join(full_path, _file)):
+                os.remove(os.path.join(full_path, _file))
+                return Response(status=200)
+
             return Response(status=404)
+
+        return Response(status=404)
 
     def post(self, request, *args, **kwargs):
         if 'folder' in request.data and 'path' in request.data:
-            config_path = request.data['config_path']
-            root = read_yaml(config_path)['storage']['path']
+            channel = request.data['channel']
+            root = read_yaml(channel)['storage']['path']
             folder = request.data['folder']
-            _path = request.data['path'].split(os.path.sep)
-            _path = '' if len(_path) == 1 else os.path.join(*_path[1:])
-            fullPath = os.path.join(root, _path, folder)
+            path_ = request.data['path'].split(os.path.sep)
+            path_ = '' if len(path_) == 1 else os.path.join(*path_[1:])
+            full_path = os.path.join(root, path_, folder)
 
             try:
-                # TODO: check if folder exists
-                os.mkdir(fullPath)
+                os.mkdir(full_path)
                 return Response(status=200)
             except OSError:
                 Response(status=500)
-        else:
-            return Response(status=404)
+
+        return Response(status=404)
 
     def patch(self, request, *args, **kwargs):
         if 'path' in request.data and 'oldname' in request.data \
                 and 'newname' in request.data:
-            config_path = request.data['config_path']
-            root = read_yaml(config_path)['storage']['path']
+            channel = request.data['channel']
+            root = read_yaml(channel)['storage']['path']
             old_name = request.data['oldname']
             new_name = request.data['newname']
-            _path = os.path.join(
+            path_ = os.path.join(
                 *(request.data['path'].split(os.path.sep)[2:]))
-            old_file = os.path.join(root, _path, old_name)
-            new_file = os.path.join(root, _path, new_name)
+            old_file = os.path.join(root, path_, old_name)
+            new_file = os.path.join(root, path_, new_name)
 
             os.rename(old_file, new_file)
 
             return Response(status=200)
-        else:
-            return Response(status=204)
+
+        return Response(status=204)
