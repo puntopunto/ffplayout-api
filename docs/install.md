@@ -49,3 +49,4 @@
 ##### Multi Channel extra Settings
 
 - set in **ffplayout/settings/common.py** `USE_SOCKET = True`
+- set permissions to: `chown www-data. -R /var/log/ffplayout` and `chown www-data. -R /etc/ffplayout/*`
