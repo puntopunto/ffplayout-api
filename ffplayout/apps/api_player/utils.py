@@ -1,7 +1,6 @@
 import json
 import os
 import re
-import signal
 from datetime import datetime
 from platform import uname
 from subprocess import PIPE, STDOUT, run
@@ -240,7 +239,7 @@ class EngineControlSocket:
     def reload(self):
         if self.process:
             return self.server.supervisor.signalProcess(self.engine,
-                                                        signal.SIGHUP)
+                                                        'SIGHUP')
 
     def add_process(self):
         return self.server.supervisor.addProcessGroup(self.engine)
