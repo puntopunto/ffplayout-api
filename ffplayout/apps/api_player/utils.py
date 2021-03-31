@@ -171,7 +171,7 @@ class EngineControlSystemD:
 
     def run_cmd(self):
         self.proc = run(self.cmd + self.service, stdout=PIPE, stderr=STDOUT,
-                        check=True, encoding="utf-8").stdout
+                        check=False, encoding="utf-8").stdout
 
     def start(self):
         self.cmd.append('start')
