@@ -72,13 +72,15 @@ class UserSerializer(serializers.ModelSerializer):
 class GuiSettingsSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
+        settings = GuiSettings.objects.create(**validated_data)
+
         if not os.path.isfile(validated_data['engine_service']):
             create_engine_config(validated_data['engine_service'],
                                  validated_data['playout_config'])
         if not os.path.isfile(validated_data['playout_config']):
             suffix = os.path.basename(
                 validated_data['playout_config']).split('-')[1].split('.')[0]
-            yaml_obj = read_yaml('/etc/ffplayout/ffplayout-001.yml')
+            yaml_obj = read_yaml(1)
             old_log_path = yaml_obj['logging']['log_path'].rstrip('/')
             old_pls_path = yaml_obj['playlist']['path'].rstrip('/')
 
@@ -103,9 +105,7 @@ class GuiSettingsSerializer(serializers.ModelSerializer):
             if not os.path.isdir(play_path):
                 os.makedirs(play_path, exist_ok=True)
 
-            write_yaml(yaml_obj, validated_data['playout_config'])
-
-        settings = GuiSettings.objects.create(**validated_data)
+            write_yaml(yaml_obj, settings.id)
 
         return settings
 
