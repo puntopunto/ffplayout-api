@@ -102,6 +102,8 @@ def read_log(type_, date_, channel):
 
 def send_message(data, channel):
     config = read_yaml(channel)
+    drawtext_cmd = ':'.join(f"{key}='{val}'" for key, val in data.items())
+    request = f"{settings.DRAW_TEXT_NODE} reinit {drawtext_cmd}"
 
     if config:
         if settings.USE_SOCKET:
@@ -116,27 +118,11 @@ def send_message(data, channel):
 
         poll = zmq.Poller()
         poll.register(client, zmq.POLLIN)
-
-        request = ''
-        reply_msg = ''
-
-        for key, value in data.items():
-            request += "{}='{}':".format(key, value)
-
-        request = "{} reinit {}".format(
-            settings.DRAW_TEXT_NODE, request.rstrip(':'))
-
         client.send_string(request)
-
         socks = dict(poll.poll(settings.REQUEST_TIMEOUT))
 
         if socks.get(client) == zmq.POLLIN:
-            reply = client.recv()
-
-            if reply and reply.decode() == '0 Success':
-                reply_msg = reply.decode()
-            else:
-                reply_msg = reply.decode()
+            reply_msg = client.recv_string()
         else:
             reply_msg = 'No response from server'
 
