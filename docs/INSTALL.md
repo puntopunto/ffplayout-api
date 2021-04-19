@@ -6,6 +6,7 @@
 
 ##### Preparation
 
+- install **mediainfo** (we need the lib)
 - clone repo to `/var/www/ffplayout-api`
 - cd in root folder from repo
 - add virtual environment: `virtualenv -p python3 venv`
