@@ -110,7 +110,9 @@ class GuiSettingsSerializer(serializers.ModelSerializer):
         return settings
 
     def update(self, instance, validated_data):
-        if not os.path.isfile(validated_data['engine_service']):
+        if not os.path.isfile(validated_data['engine_service']) and \
+            os.path.isfile(
+                '/etc/ffplayout/supervisor/conf.d/engine-001.conf'):
             create_engine_config(validated_data['engine_service'],
                                  validated_data['playout_config'])
         if not os.path.isfile(validated_data['playout_config']):
