@@ -14,4 +14,6 @@ tests/
 !**/migrations/__init__.py
 **/ffplayout/apps/*
 !**/ffplayout/apps/api_player/
+!**/ffplayout/apps/api_player/tests/
 !**/ffplayout/apps/api_srs/
+!**/ffplayout/apps/__init__.py
