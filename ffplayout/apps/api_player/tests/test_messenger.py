@@ -1,5 +1,4 @@
 from threading import Thread
-from time import sleep
 
 import zmq
 from django.contrib.auth.models import User
