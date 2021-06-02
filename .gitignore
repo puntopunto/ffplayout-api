@@ -15,5 +15,6 @@ tests/
 **/ffplayout/apps/*
 !**/ffplayout/apps/api_player/
 !**/ffplayout/apps/api_player/tests/
+!**/ffplayout/apps/api_srs/tests/
 !**/ffplayout/apps/api_srs/
 !**/ffplayout/apps/__init__.py
