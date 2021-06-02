@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 from datetime import timedelta
+from importlib import import_module
+from pathlib import Path
 from pydoc import locate
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -114,23 +116,21 @@ USE_TZ = True
 
 
 # dynamic app loader
-APPS_DIR = os.path.join(BASE_DIR, 'apps/')
+APPS_DIR = Path(BASE_DIR).joinpath('apps')
 
-for app in os.listdir(APPS_DIR):
-    if os.path.isdir(os.path.join(APPS_DIR, app)):
-        APP_NAME = 'apps.{}'.format(app)
+for app in APPS_DIR.glob('api_*'):
+    if app.is_dir():
+        APP_NAME = f'apps.{app.name}'
 
         if APP_NAME not in INSTALLED_APPS:
-            # add app to installed apps
-            INSTALLED_APPS += (APP_NAME, )
+            INSTALLED_APPS.append(APP_NAME)
 
-            if os.path.isfile(os.path.join(APPS_DIR, app, 'settings.py')):
-                db = locate('{}.settings.DATABASES'.format(APP_NAME))
+            if APPS_DIR.joinpath(app.name, 'settings.py').is_file():
+                dbs = import_module(f'{APP_NAME}.settings').DATABASES
 
-                for key in db:
+                for key in dbs:
                     if key not in DATABASES:
-                        # add app db to DATABASES
-                        DATABASES.update({key: db[key]})
+                        DATABASES.update({key: dbs[key]})
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
