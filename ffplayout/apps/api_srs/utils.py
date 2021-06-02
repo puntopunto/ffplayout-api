@@ -1,8 +1,10 @@
 import re
 
 import requests
-from apps.api_player.utils import SystemControl
 from django.conf import settings
+from rest_framework.response import Response
+
+from ..api_player.utils import SystemControl
 
 
 def get_publisher():
@@ -43,10 +45,39 @@ def kick_streams():
 def start_stream(last):
     """
     when last unpublished stream was the high priority stream,
-    start the ffplayout-engine
+    start the ffplayout_engine
 
     LIMITATION: for now only first engine-001 can be started
     """
     if last == settings.HIGH_PRIORITY_STREAM:
         system_ctl = SystemControl()
         system_ctl.run_service('start', 'engine-001')
+
+
+def check_streams(data):
+    if data['stream'] == settings.HIGH_PRIORITY_STREAM:
+        kick_streams()
+    elif data['stream'] == settings.LOW_PRIORITY_STREAM:
+        for client in get_publisher():
+            stream = client['url'].split('/')[-1]
+
+            if stream == settings.HIGH_PRIORITY_STREAM:
+                return Response({"code": 403, "data": None})
+
+    return Response({"code": 0, "data": None})
+
+
+def rtmp_key(req):
+    param = req['param'].lstrip('?')
+    params = param.split('&')
+    obj = {}
+
+    if params[0]:
+        for param in params:
+            key, value = param.split('=')
+            obj[key] = value
+
+        if obj.get('key') == settings.RTMP_KEY:
+            return True
+
+    return False
