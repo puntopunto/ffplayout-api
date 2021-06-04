@@ -9,7 +9,7 @@ tests/
 **/ffplayout/static/
 ._*
 ._**
-*.sqlite3
+*.sqlite3*
 **/migrations/*
 !**/migrations/__init__.py
 **/ffplayout/apps/*
