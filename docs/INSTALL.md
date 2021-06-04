@@ -43,11 +43,11 @@
 - run `visudo` and add:
 
     ```
-    www-data ALL = NOPASSWD: /bin/systemctl start ffplayout-engine.service, /bin/systemctl stop ffplayout-engine.service, /bin/systemctl reload ffplayout-engine.service, /bin/systemctl restart ffplayout-engine.service, /bin/systemctl status ffplayout-engine.service, /bin/systemctl is-active ffplayout-engine.service
+    www-data ALL = NOPASSWD: /bin/systemctl start ffplayout_engine.service, /bin/systemctl stop ffplayout_engine.service, /bin/systemctl reload ffplayout_engine.service, /bin/systemctl restart ffplayout_engine.service, /bin/systemctl status ffplayout_engine.service, /bin/systemctl is-active ffplayout_engine.service
     ```
-- set in **ffplayout/settings/common.py** `USE_SOCKET = False`
+- set in **ffplayout/settings/common.py** `MULTI_CHANNEL = False`
 
 ##### Multi Channel extra Settings
 
-- set in **ffplayout/settings/common.py** `USE_SOCKET = True`
+- set in **ffplayout/settings/common.py** `MULTI_CHANNEL = True`
 - set permissions to: `chown www-data. -R /var/log/ffplayout` and `chown www-data. -R /etc/ffplayout/*`
