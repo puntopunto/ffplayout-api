@@ -106,7 +106,7 @@ def send_message(data, channel):
     request = f"{settings.DRAW_TEXT_NODE} reinit {drawtext_cmd}"
 
     if config:
-        if settings.USE_SOCKET:
+        if settings.MULTI_CHANNEL:
             address = settings.SOCKET_IP
             port = config['text']['bind_address'].split(':')[1]
         else:
@@ -272,9 +272,10 @@ class SystemControl:
 
         return self.run_cmd(sock, cmd)
 
-    def run_service(self, cmd, engine=None):
-        if settings.USE_SOCKET:
-            return self.rpc_socket(cmd, engine)
+    def run_service(self, cmd, channel=None):
+        if settings.MULTI_CHANNEL:
+            config = gui_config(channel)
+            return self.rpc_socket(cmd, config.get('engine_service'))
 
         return self.systemd(cmd)
 
@@ -305,7 +306,7 @@ class SystemStats:
     def settings(self):
         return {
             'timezone': settings.TIME_ZONE,
-            'multi_channel': settings.USE_SOCKET
+            'multi_channel': settings.MULTI_CHANNEL
         }
 
     def cpu(self):

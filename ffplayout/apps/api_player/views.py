@@ -55,7 +55,7 @@ class GuiSettingsViewSet(viewsets.ModelViewSet):
         if os.path.isfile(obj.playout_config):
             os.remove(obj.playout_config)
 
-        if settings.USE_SOCKET:
+        if settings.MULTI_CHANNEL:
             engine = EngineControlSocket()
             engine.get_process(service_name)
             engine.stop()
@@ -138,16 +138,16 @@ class SystemCtl(APIView):
     def post(self, request, *args, **kwargs):
         if 'run' in request.data:
             system_ctl = SystemControl()
-            if settings.USE_SOCKET:
+            if settings.MULTI_CHANNEL:
                 control = system_ctl.run_service(request.data['run'],
-                                                 request.data['engine'])
+                                                 request.data['channel'])
             else:
                 control = system_ctl.run_service(request.data['run'])
 
             if isinstance(control, int):
                 return Response(status=control)
-            else:
-                return Response(control)
+
+            return Response(control)
 
         return Response(status=404)
 
@@ -163,10 +163,10 @@ class LogReader(APIView):
 
             if log:
                 return Response({'log': log})
-            else:
-                return Response(status=204)
-        else:
-            return Response(status=404)
+
+            return Response(status=204)
+
+        return Response(status=404)
 
 
 class Playlist(APIView):
@@ -188,8 +188,8 @@ class Playlist(APIView):
             return Response({
                 "success": False,
                 "error": "Playlist from {} not found!".format(date)})
-        else:
-            return Response(status=400)
+
+        return Response(status=400)
 
     def post(self, request, *args, **kwargs):
         if 'data' in request.data:
@@ -217,8 +217,8 @@ class Statistics(APIView):
                 and hasattr(stats, request.GET.dict()['stats']):
             return Response(
                 getattr(stats, request.GET.dict()['stats'])())
-        else:
-            return Response(status=404)
+
+        return Response(status=404)
 
 
 class Media(APIView):
