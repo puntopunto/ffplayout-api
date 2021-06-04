@@ -146,8 +146,8 @@ REQUEST_TIMEOUT = 1000
 
 ###############################################################################
 # controlling of the engine over supervisord xmlrpclib
-# use_socker False switch to systemd
-USE_SOCKET = True
+# MULTI_CHANNEL False switch to systemd
+MULTI_CHANNEL = True
 SOCKET_IP = 'localhost'
 SOCKET_PORT = 9001
 SOCKET_USER = 'ffplayout'
