@@ -1,5 +1,6 @@
 import os
 import shutil
+from time import sleep
 from urllib.parse import unquote
 
 from apps.api_player.models import GuiSettings, MessengePresets
@@ -13,8 +14,8 @@ from rest_framework.parsers import FileUploadParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .utils import (PlayoutService, SystemStats, get_media_path,
-                    playout_socket, read_json, read_log, read_yaml,
+from .utils import (EngineControlSocket, SystemControl, SystemStats,
+                    get_media_path, read_json, read_log, read_yaml,
                     send_message, write_json, write_yaml)
 
 
@@ -45,6 +46,31 @@ class GuiSettingsViewSet(viewsets.ModelViewSet):
     queryset = GuiSettings.objects.all()
     serializer_class = GuiSettingsSerializer
 
+    def destroy(self, request, *args, **kwargs):
+        obj = GuiSettings.objects.get(id=kwargs['pk'])
+        service_name = os.path.basename(obj.engine_service).split('.')[0]
+
+        if os.path.isfile(obj.engine_service):
+            os.remove(obj.engine_service)
+        if os.path.isfile(obj.playout_config):
+            os.remove(obj.playout_config)
+
+        if settings.MULTI_CHANNEL:
+            engine = EngineControlSocket()
+            engine.get_process(service_name)
+            engine.stop()
+            count = 0
+
+            while engine.status().lower() != 'stopped' and count < 10:
+                sleep(0.5)
+                count += 1
+
+            if engine.status().lower() == 'stopped':
+                engine.remove_process(service_name)
+
+        return super(
+            GuiSettingsViewSet, self).destroy(request, *args, **kwargs)
+
 
 class MessengerFilter(filters.FilterSet):
 
@@ -67,7 +93,8 @@ class MessageSender(APIView):
 
     def post(self, request, *args, **kwargs):
         if 'data' in request.data:
-            response = send_message(request.data['data'])
+            response = send_message(request.data['data'],
+                                    request.data['channel'])
             return Response({"success": True, 'status': response})
 
         return Response({"success": False})
@@ -76,24 +103,27 @@ class MessageSender(APIView):
 class Config(APIView):
     """
     read and write config from ffplayout engine
-    for reading endpoint is: http://127.0.0.1:8000/api/player/config/?config
+    for reading endpoint is:
+        http://127.0.0.1:8000/api/player/config/?configPlayout
     """
     parser_classes = [JSONParser]
 
     def get(self, request, *args, **kwargs):
-        if 'configPlayout' in request.GET.dict():
-            yaml_input = read_yaml()
+        if 'configPlayout' in request.GET.dict() and \
+                'channel' in request.GET.dict():
+            channel = request.GET.dict()['channel']
+            yaml_input = read_yaml(channel)
 
             if yaml_input:
                 return Response(yaml_input)
-            else:
-                return Response(status=204)
-        else:
-            return Response(status=404)
+
+            return Response(status=204)
+
+        return Response(status=404)
 
     def post(self, request, *args, **kwargs):
-        if 'data' in request.data:
-            write_yaml(request.data['data'])
+        if 'data' in request.data and 'channel' in request.data:
+            write_yaml(request.data['data'], request.data['channel'])
             return Response(status=200)
 
         return Response(status=404)
@@ -107,58 +137,36 @@ class SystemCtl(APIView):
 
     def post(self, request, *args, **kwargs):
         if 'run' in request.data:
-            if settings.USE_SOCKET:
-                return self.socket(request.data['run'])
+            system_ctl = SystemControl()
+            if settings.MULTI_CHANNEL:
+                control = system_ctl.run_service(request.data['run'],
+                                                 request.data['channel'])
             else:
-                return self.systemd(request.data['run'])
+                control = system_ctl.run_service(request.data['run'])
+
+            if isinstance(control, int):
+                return Response(status=control)
+
+            return Response(control)
 
         return Response(status=404)
-
-    def systemd(self, cmd):
-        service = PlayoutService()
-
-        if cmd == 'start':
-            service.start()
-            return Response(status=200)
-        elif cmd == 'stop':
-            service.stop()
-            return Response(status=200)
-        elif cmd == 'reload':
-            service.reload()
-            return Response(status=200)
-        elif cmd == 'restart':
-            service.restart()
-            return Response(status=200)
-        elif cmd == 'status':
-            status = service.status()
-            return Response({"data": status})
-        else:
-            return Response(status=400)
-
-    def socket(self, cmd):
-        sock = playout_socket(cmd)
-        if sock in ['active', 'stopped']:
-            return Response({"data": sock})
-        elif sock == '200':
-            return Response(status=200)
-        else:
-            return Response(status=400)
 
 
 class LogReader(APIView):
     def get(self, request, *args, **kwargs):
         if 'type' in request.GET.dict() and 'date' in request.GET.dict():
-            type = request.GET.dict()['type']
-            _date = request.GET.dict()['date']
+            type_ = request.GET.dict()['type']
+            date_ = request.GET.dict()['date']
+            channel = request.GET.dict()['channel']
 
-            log = read_log(type, _date)
+            log = read_log(type_, date_, channel)
 
             if log:
                 return Response({'log': log})
-            else:
-                return Response(status=204)
-        else:
-            return Response(status=404)
+
+            return Response(status=204)
+
+        return Response(status=404)
 
 
 class Playlist(APIView):
@@ -171,22 +179,30 @@ class Playlist(APIView):
     def get(self, request, *args, **kwargs):
         if 'date' in request.GET.dict():
             date = request.GET.dict()['date']
-            json_input = read_json(date)
+            channel = request.GET.dict()['channel']
+            json_input = read_json(date, channel)
 
             if json_input:
                 return Response(json_input)
-            else:
-                return Response({
-                    "success": False,
-                    "error": "Playlist from {} not found!".format(date)})
-        else:
-            return Response(status=400)
+
+            return Response({
+                "success": False,
+                "error": "Playlist from {} not found!".format(date)})
+
+        return Response(status=400)
 
     def post(self, request, *args, **kwargs):
         if 'data' in request.data:
-            return write_json(request.data['data'])
+            if 'channel' in request.data:
+                return write_json(request.data['data'],
+                                  request.data['channel'])
+            if 'delete' in request.data['data']:
+                if os.path.isfile(request.data['data']['delete']):
+                    os.remove(request.data['data']['delete'])
 
-        return Response({'detail': 'Unspecified save error'})
+                return Response(status=200)
+
+        return Response({'detail': 'Unspecified save error'}, status=400)
 
 
 class Statistics(APIView):
@@ -201,8 +217,8 @@ class Statistics(APIView):
                 and hasattr(stats, request.GET.dict()['stats']):
             return Response(
                 getattr(stats, request.GET.dict()['stats'])())
-        else:
-            return Response(status=404)
+
+        return Response(status=404)
 
 
 class Media(APIView):
@@ -214,24 +230,27 @@ class Media(APIView):
     def get(self, request, *args, **kwargs):
         if 'extensions' in request.GET.dict():
             extensions = request.GET.dict()['extensions']
+            channel = request.GET.dict()['channel']
 
             if 'path' in request.GET.dict() and request.GET.dict()['path']:
                 return Response({'tree': get_media_path(
-                    extensions, request.GET.dict()['path']
+                    extensions, channel, request.GET.dict()['path']
                 )})
-            elif 'path' in request.GET.dict():
-                return Response({'tree': get_media_path(extensions)})
-            else:
-                return Response(status=204)
-        else:
-            return Response(status=404)
+
+            if 'path' in request.GET.dict():
+                return Response({'tree': get_media_path(extensions, channel)})
+
+            return Response(status=204)
+
+        return Response(status=404)
 
 
 class FileUpload(APIView):
     parser_classes = [FileUploadParser]
 
     def put(self, request, filename, format=None):
-        root = read_yaml()['storage']['path']
+        root = read_yaml(
+            request.query_params['channel'])['storage']['path']
         file_obj = request.data['file']
         filename = unquote(filename)
         path = unquote(request.query_params['path']).split('/')[1:]
@@ -246,56 +265,59 @@ class FileOperations(APIView):
 
     def delete(self, request, *args, **kwargs):
         if 'file' in request.GET.dict() and 'path' in request.GET.dict():
-            root = read_yaml()['storage']['path']
+            channel = request.GET.dict()['channel']
+            root = read_yaml(channel)['storage']['path']
             _file = unquote(request.GET.dict()['file'])
             folder = unquote(request.GET.dict()['path']).lstrip('/')
             _path = os.path.join(*(folder.split(os.path.sep)[1:]))
-            fullPath = os.path.join(root, _path)
+            full_path = os.path.join(root, _path)
 
             if not _file or _file == 'null':
-                if os.path.isdir(fullPath):
-                    shutil.rmtree(fullPath, ignore_errors=True)
+                if os.path.isdir(full_path):
+                    shutil.rmtree(full_path, ignore_errors=True)
                     return Response(status=200)
-                else:
-                    return Response(status=404)
-            elif os.path.isfile(os.path.join(fullPath, _file)):
-                os.remove(os.path.join(fullPath, _file))
-                return Response(status=200)
-            else:
+
                 return Response(status=404)
-        else:
+
+            if os.path.isfile(os.path.join(full_path, _file)):
+                os.remove(os.path.join(full_path, _file))
+                return Response(status=200)
+
             return Response(status=404)
+
+        return Response(status=404)
 
     def post(self, request, *args, **kwargs):
         if 'folder' in request.data and 'path' in request.data:
-            root = read_yaml()['storage']['path']
+            channel = request.data['channel']
+            root = read_yaml(channel)['storage']['path']
             folder = request.data['folder']
-            _path = request.data['path'].split(os.path.sep)
-            _path = '' if len(_path) == 1 else os.path.join(*_path[1:])
-            fullPath = os.path.join(root, _path, folder)
+            path_ = request.data['path'].split(os.path.sep)
+            path_ = '' if len(path_) == 1 else os.path.join(*path_[1:])
+            full_path = os.path.join(root, path_, folder)
 
             try:
-                # TODO: check if folder exists
-                os.mkdir(fullPath)
+                os.mkdir(full_path)
                 return Response(status=200)
             except OSError:
                 Response(status=500)
-        else:
-            return Response(status=404)
+
+        return Response(status=404)
 
     def patch(self, request, *args, **kwargs):
         if 'path' in request.data and 'oldname' in request.data \
                 and 'newname' in request.data:
-            root = read_yaml()['storage']['path']
+            channel = request.data['channel']
+            root = read_yaml(channel)['storage']['path']
             old_name = request.data['oldname']
             new_name = request.data['newname']
-            _path = os.path.join(
+            path_ = os.path.join(
                 *(request.data['path'].split(os.path.sep)[2:]))
-            old_file = os.path.join(root, _path, old_name)
-            new_file = os.path.join(root, _path, new_name)
+            old_file = os.path.join(root, path_, old_name)
+            new_file = os.path.join(root, path_, new_name)
 
             os.rename(old_file, new_file)
 
             return Response(status=200)
-        else:
-            return Response(status=204)
+
+        return Response(status=204)

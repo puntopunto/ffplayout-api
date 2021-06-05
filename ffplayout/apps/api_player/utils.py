@@ -1,130 +1,139 @@
 import json
 import os
 import re
-import socket
 from datetime import datetime
 from platform import uname
 from subprocess import PIPE, STDOUT, run
 from time import sleep
-
-import yaml
-from pymediainfo import MediaInfo
+from xmlrpc.client import ServerProxy
 
 import psutil
+import yaml
 import zmq
 from apps.api_player.models import GuiSettings
 from django.conf import settings
 from natsort import natsorted
+from pymediainfo import MediaInfo
 from rest_framework.response import Response
 
 
-def read_yaml():
-    gui_settings = GuiSettings.objects.filter(id=1).values()
-    if gui_settings:
-        config = gui_settings[0]
+def gui_config(index):
+    gui_settings = GuiSettings.objects.filter(id=index).values()
 
-        if config and os.path.isfile(config['playout_config']):
-            with open(config['playout_config'], 'r') as config_file:
-                return yaml.safe_load(config_file)
+    return gui_settings[0] if gui_settings else {}
 
 
-def write_yaml(data):
-    config = GuiSettings.objects.filter(id=1).values()[0]
+def read_yaml(channel):
+    config = gui_config(channel)
 
-    if os.path.isfile(config['playout_config']):
+    if config.get('playout_config') and \
+            os.path.isfile(config['playout_config']):
+        with open(config['playout_config'], 'r') as config_file:
+            return yaml.safe_load(config_file)
+
+    return None
+
+
+def write_yaml(data, channel):
+    config = gui_config(channel)
+
+    if config.get('playout_config'):
         with open(config['playout_config'], 'w') as outfile:
             yaml.dump(data, outfile, default_flow_style=False,
                       sort_keys=False, indent=4)
 
 
-def read_json(date):
-    config = read_yaml()['playlist']['path']
-    y, m, d = date.split('-')
-    input = os.path.join(config, y, m, '{}.json'.format(date))
-    if os.path.isfile(input):
-        with open(input, 'r') as playlist:
-            return json.load(playlist)
+def read_json(date_, channel):
+    config = read_yaml(channel)
+
+    if config:
+        playlist_path = config['playlist']['path']
+        year, month, _ = date_.split('-')
+        input_ = os.path.join(playlist_path, year, month, f'{date_}.json')
+
+        if os.path.isfile(input_):
+            with open(input_, 'r') as playlist:
+                return json.load(playlist)
+
+    return None
 
 
-def write_json(data):
-    config = read_yaml()['playlist']['path']
-    y, m, d = data['date'].split('-')
-    _path = os.path.join(config, y, m)
+def write_json(data, channel):
+    config = read_yaml(channel)
 
-    if not os.path.isdir(_path):
-        os.makedirs(_path, exist_ok=True)
+    if config:
+        playlist_path = config['playlist']['path']
+        year, month, _ = data['date'].split('-')
+        playlist = os.path.join(playlist_path, year, month)
 
-    output = os.path.join(_path, '{}.json'.format(data['date']))
+        if not os.path.isdir(playlist):
+            os.makedirs(playlist, exist_ok=True)
 
-    if os.path.isfile(output) and data == read_json(data['date']):
-        return Response(
-            {'detail': 'Playlist from {} already exists'.format(data['date'])})
+        output = os.path.join(playlist, f'{data["date"]}.json')
 
-    with open(output, "w") as outfile:
-        json.dump(data, outfile, indent=4)
+        if os.path.isfile(output) and data == read_json(data['date'], channel):
+            return Response(
+                {'detail': f'Playlist from {data["date"]} already exists'})
 
-    return Response({'detail': 'Playlist from {} saved'.format(data['date'])})
+        with open(output, "w") as outfile:
+            json.dump(data, outfile, indent=4)
 
+        return Response({'detail': f'Playlist from {data["date"]} saved'})
 
-def read_log(type, _date):
-    config = read_yaml()
-    log_path = config['logging']['log_path']
-
-    if _date == datetime.now().strftime('%Y-%m-%d'):
-        log_file = os.path.join(log_path, '{}.log'.format(type))
-    else:
-        log_file = os.path.join(log_path, '{}.log.{}'.format(type, _date))
-
-    if os.path.isfile(log_file):
-        with open(log_file, 'r') as log:
-            return log.read().strip()
+    return Response({'detail': f'Saving playlist from {data["date"]} failed!'})
 
 
-def send_message(data):
-    config = read_yaml()
+def read_log(type_, date_, channel):
+    config = read_yaml(channel)
+    if config and config.get('logging'):
+        log_path = config['logging']['log_path']
 
-    if settings.USE_SOCKET:
-        address = settings.SOCKET_IP
-        port = config['text']['bind_address'].split(':')[1]
-    else:
-        address, port = config['text']['bind_address'].split(':')
-
-    context = zmq.Context(1)
-    client = context.socket(zmq.REQ)
-    client.connect('tcp://{}:{}'.format(address, port))
-
-    poll = zmq.Poller()
-    poll.register(client, zmq.POLLIN)
-
-    request = ''
-    reply_msg = ''
-
-    for key, value in data.items():
-        request += "{}='{}':".format(key, value)
-
-    request = "{} reinit {}".format(
-        settings.DRAW_TEXT_NODE, request.rstrip(':'))
-
-    client.send_string(request)
-
-    socks = dict(poll.poll(settings.REQUEST_TIMEOUT))
-
-    if socks.get(client) == zmq.POLLIN:
-        reply = client.recv()
-
-        if reply and reply.decode() == '0 Success':
-            reply_msg = reply.decode()
+        if date_ == datetime.now().strftime('%Y-%m-%d'):
+            log_file = os.path.join(log_path, '{}.log'.format(type_))
         else:
-            reply_msg = reply.decode()
-    else:
-        reply_msg = 'No response from server'
+            log_file = os.path.join(log_path, '{}.log.{}'.format(type_, date_))
 
-    client.setsockopt(zmq.LINGER, 0)
-    client.close()
-    poll.unregister(client)
+        if os.path.isfile(log_file):
+            with open(log_file, 'r') as log:
+                return log.read().strip()
 
-    context.term()
-    return {'Success': reply_msg}
+    return None
+
+
+def send_message(data, channel):
+    config = read_yaml(channel)
+    drawtext_cmd = ':'.join(f"{key}='{val}'" for key, val in data.items())
+    request = f"{settings.DRAW_TEXT_NODE} reinit {drawtext_cmd}"
+
+    if config:
+        if settings.MULTI_CHANNEL:
+            address = settings.SOCKET_IP
+            port = config['text']['bind_address'].split(':')[1]
+        else:
+            address, port = config['text']['bind_address'].split(':')
+
+        context = zmq.Context(1)
+        client = context.socket(zmq.REQ)
+        client.connect('tcp://{}:{}'.format(address, port))
+
+        poll = zmq.Poller()
+        poll.register(client, zmq.POLLIN)
+        client.send_string(request)
+        socks = dict(poll.poll(settings.REQUEST_TIMEOUT))
+
+        if socks.get(client) == zmq.POLLIN:
+            reply_msg = client.recv_string()
+        else:
+            reply_msg = 'No response from server'
+
+        client.setsockopt(zmq.LINGER, 0)
+        client.close()
+        poll.unregister(client)
+
+        context.term()
+        return {'Success': reply_msg}
+
+    return {'Failed': 'No config exists'}
 
 
 def sizeof_fmt(num, suffix='B'):
@@ -135,15 +144,19 @@ def sizeof_fmt(num, suffix='B'):
     return "%.1f%s%s" % (num, 'Yi', suffix)
 
 
-class PlayoutService:
+class EngineControlSystemD:
+    """
+    class for controlling the systemd service from ffplayout-engine
+    """
+
     def __init__(self):
-        self.service = ['ffplayout-engine.service']
+        self.service = ['ffplayout_engine.service']
         self.cmd = ['sudo', '/bin/systemctl']
         self.proc = None
 
     def run_cmd(self):
         self.proc = run(self.cmd + self.service, stdout=PIPE, stderr=STDOUT,
-                        encoding="utf-8").stdout
+                        check=False, encoding="utf-8").stdout
 
     def start(self):
         self.cmd.append('start')
@@ -168,44 +181,117 @@ class PlayoutService:
         return self.proc.replace('\n', '')
 
 
-def playout_socket(cmd):
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((settings.SOCKET_IP, settings.SOCKET_PORT))
+class EngineControlSocket:
+    """
+    class for controlling ffplayout_engine over supervisord socket
+    """
 
-    status = 404
+    def __init__(self):
+        self.engine = None
+        self.server = ServerProxy(
+            f'http://{settings.SOCKET_USER}:{settings.SOCKET_PASS}'
+            f'@{settings.SOCKET_IP}:{settings.SOCKET_PORT}/RPC2')
+        self.process = None
 
-    try:
-        if cmd in ['start', 'stop', 'restart', 'reload']:
-            sock.sendall(str.encode(cmd))
+        try:
+            self.proc_list = self.server.supervisor.getAllProcessInfo()
+        except Exception:
+            self.proc_list = []
 
-            if len(cmd) > 0:
-                data = sock.recv(3).decode('utf-8').strip()
-                status = data
-        elif cmd == 'status':
-            sock.sendall(str.encode(cmd))
+    def get_process(self, engine):
+        self.engine = engine
+        self.process = None
 
-            if len(cmd) > 0:
-                data = sock.recv(8).decode('utf-8').strip()
+        for proc in self.proc_list:
+            if engine == proc.get('name'):
+                self.process = proc
+                break
 
-                if data in ['RUNNING', 'STARTING']:
-                    status = 'active'
-                else:
-                    status = 'stopped'
-    finally:
-        sock.close()
+    def start(self):
+        if not self.process:
+            return self.add_process()
+        elif self.status() == 'STOPPED':
+            return self.server.supervisor.startProcess(self.engine)
 
-    return status
+    def stop(self):
+        if self.process and self.process.get('statename') == 'RUNNING':
+            return self.server.supervisor.stopProcessGroup(self.engine)
+
+    def restart(self):
+        self.stop()
+        sleep(2)
+        self.start()
+
+    def reload(self):
+        if self.process:
+            return self.server.supervisor.signalProcess(self.engine,
+                                                        'SIGHUP')
+
+    def add_process(self):
+        return self.server.supervisor.addProcessGroup(self.engine)
+
+    def remove_process(self, engine):
+        return self.server.supervisor.removeProcessGroup(engine)
+
+    def status(self):
+        if self.process:
+            info = self.server.supervisor.getProcessInfo(self.engine)
+            return info.get('statename')
+
+
+class SystemControl:
+    """
+    controlling the ffplayout_engine over systemd services,
+    or over a socket connecting
+    """
+
+    def run_cmd(self, service, cmd):
+        if cmd == 'start':
+            service.start()
+            return 200
+        if cmd == 'stop':
+            service.stop()
+            return 200
+        if cmd == 'reload':
+            service.reload()
+            return 200
+        if cmd == 'restart':
+            service.restart()
+            return 200
+        if cmd == 'status':
+            return {"data": service.status()}
+
+        return 400
+
+    def systemd(self, cmd):
+        return self.run_cmd(EngineControlSystemD(), cmd)
+
+    def rpc_socket(self, cmd, engine):
+        sock = EngineControlSocket()
+        sock.get_process(engine)
+
+        return self.run_cmd(sock, cmd)
+
+    def run_service(self, cmd, channel=None):
+        if settings.MULTI_CHANNEL:
+            config = gui_config(channel)
+            return self.rpc_socket(cmd, config.get('engine_service'))
+
+        return self.systemd(cmd)
 
 
 class SystemStats:
+    """
+    get system statistics
+    """
+
     def __init__(self):
-        gui_settings = GuiSettings.objects.filter(id=1).values()
-        self.config = gui_settings[0] if gui_settings else []
+        self.config = gui_config(1)
 
     def all(self):
         if self.config:
             return {
-                **self.system(),
+                **self.system(), **self.settings(),
                 **self.cpu(), **self.ram(), **self.swap(),
                 **self.disk(), **self.net(), **self.net_speed()
             }
@@ -215,6 +301,12 @@ class SystemStats:
             'system': uname().system,
             'node': uname().node,
             'machine': uname().machine
+        }
+
+    def settings(self):
+        return {
+            'timezone': settings.TIME_ZONE,
+            'multi_channel': settings.MULTI_CHANNEL
         }
 
     def cpu(self):
@@ -315,49 +407,52 @@ def get_video_duration(clip):
     return duration
 
 
-def get_path(input):
+def get_path(input_, media_folder):
     """
     return path and prevent breaking out of media root
     """
-    config = read_yaml()
-    media_root_list = config['storage']['path'].strip('/').split('/')
+    media_root_list = media_folder.strip('/').split('/')
     media_root_list.pop()
     media_root = '/' + '/'.join(media_root_list)
 
-    if input:
-        input = os.path.abspath(os.path.join(media_root, input.strip('/')))
+    if input_:
+        input_ = os.path.abspath(os.path.join(media_root, input_.strip('/')))
 
-    if not input.startswith(config['storage']['path']):
-        input = os.path.join(config['storage']['path'], input.strip('/'))
+    if not input_.startswith(media_folder):
+        input_ = os.path.join(media_folder, input_.strip('/'))
 
-    return media_root, input
+    return media_root, input_
 
 
-def get_media_path(extensions, _dir=''):
-    config = read_yaml()
-    media_folder = config['storage']['path']
-    extensions = extensions.split(',')
-    playout_extensions = config['storage']['extensions']
-    gui_extensions = [x for x in extensions if x not in playout_extensions]
-    media_root, search_dir = get_path(_dir)
+def get_media_path(extensions, channel, _dir=''):
+    config = read_yaml(channel)
 
-    for root, dirs, files in os.walk(search_dir, topdown=True):
-        root = root.rstrip('/')
-        media_files = []
+    if config:
+        media_folder = config['storage']['path']
+        extensions = extensions.split(',')
+        playout_extensions = config['storage']['extensions']
+        gui_extensions = [x for x in extensions if x not in playout_extensions]
+        media_root, search_dir = get_path(_dir, media_folder)
 
-        for file in files:
-            ext = os.path.splitext(file)[1]
-            if ext in playout_extensions:
-                duration = get_video_duration(os.path.join(root, file))
-                media_files.append({'file': file, 'duration': duration})
-            elif ext in gui_extensions:
-                media_files.append({'file': file, 'duration': ''})
+        for root, dirs, files in os.walk(search_dir, topdown=True):
+            root = root.rstrip('/')
+            media_files = []
 
-        dirs = natsorted(dirs)
+            for file in files:
+                ext = os.path.splitext(file)[1]
+                if ext in playout_extensions:
+                    duration = get_video_duration(os.path.join(root, file))
+                    media_files.append({'file': file, 'duration': duration})
+                elif ext in gui_extensions:
+                    media_files.append({'file': file, 'duration': ''})
 
-        if root.strip('/') != media_folder.strip('/') or not dirs:
-            dirs.insert(0, '..')
+            dirs = natsorted(dirs)
 
-        root = re.sub(r'^{}'.format(media_root), '', root).strip('/')
+            if root.strip('/') != media_folder.strip('/') or not dirs:
+                dirs.insert(0, '..')
 
-        return [root, dirs, natsorted(media_files, key=lambda x: x['file'])]
+            root = re.sub(r'^{}'.format(media_root), '', root).strip('/')
+
+            return [root, dirs,
+                    natsorted(media_files, key=lambda x: x['file'])]
+    return []

@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+
+"""
+this script takes a text file, convert it to a json playlist
+and send it to the API
+"""
 
 import json
 from argparse import ArgumentParser
@@ -106,6 +110,6 @@ if __name__ == '__main__':
                  'content-type': 'application/json'})
 
     if req.status_code == 201:
-        print('Save remote playlist from done...')
+        print('Save remote playlist done...')
     else:
         print(req.json()['detail'])

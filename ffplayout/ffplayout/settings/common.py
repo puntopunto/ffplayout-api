@@ -12,6 +12,8 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 from datetime import timedelta
+from importlib import import_module
+from pathlib import Path
 from pydoc import locate
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -75,16 +77,20 @@ DATABASES = {}
 
 AUTH_PASSWORD_VALIDATORS = [
     {
-        'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator',
+        'NAME': ('django.contrib.auth.password_validation.'
+                 'UserAttributeSimilarityValidator'),
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
+        'NAME':
+            'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
+        'NAME':
+            'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {
-        'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+        'NAME':
+            'django.contrib.auth.password_validation.NumericPasswordValidator',
     }
 ]
 
@@ -110,23 +116,21 @@ USE_TZ = True
 
 
 # dynamic app loader
-APPS_DIR = os.path.join(BASE_DIR, 'apps/')
+APPS_DIR = Path(BASE_DIR).joinpath('apps')
 
-for dir in os.listdir(APPS_DIR):
-    if os.path.isdir(os.path.join(APPS_DIR, dir)):
-        app_name = 'apps.{}'.format(dir)
+for app in APPS_DIR.glob('api_*'):
+    if app.is_dir():
+        APP_NAME = f'apps.{app.name}'
 
-        if app_name not in INSTALLED_APPS:
-            # add app to installed apps
-            INSTALLED_APPS += (app_name, )
+        if APP_NAME not in INSTALLED_APPS:
+            INSTALLED_APPS.append(APP_NAME)
 
-            if os.path.isfile(os.path.join(APPS_DIR, dir, 'settings.py')):
-                db = locate('{}.settings.DATABASES'.format(app_name))
+            if APPS_DIR.joinpath(app.name, 'settings.py').is_file():
+                dbs = import_module(f'{APP_NAME}.settings').DATABASES
 
-                for key in db:
+                for key in dbs:
                     if key not in DATABASES:
-                        # add app db to DATABASES
-                        DATABASES.update({key: db[key]})
+                        DATABASES.update({key: dbs[key]})
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
@@ -141,15 +145,17 @@ DRAW_TEXT_NODE = 'Parsed_drawtext_2'
 REQUEST_TIMEOUT = 1000
 
 ###############################################################################
-# controlling of the engine over systemd unit, or socket
-# use_socker False switch to systemd
-USE_SOCKET = False
-SOCKET_IP = '127.0.0.1'
-SOCKET_PORT = 64233
+# controlling of the engine over supervisord xmlrpclib
+# MULTI_CHANNEL False switch to systemd
+MULTI_CHANNEL = True
+SOCKET_IP = 'localhost'
+SOCKET_PORT = 9001
+SOCKET_USER = 'ffplayout'
+SOCKET_PASS = 'hsF0wQkl5zopEy1mBlT3g'
 
 ###############################################################################
 # srs streaming server
-SRS_IP = 'srs'
+SRS_IP = '127.0.0.1'
 SRS_API_PORT = 1985
 
 # srs rtmp server API key
@@ -157,7 +163,7 @@ SRS_KEY = 'fdO12mlKgp0H4z3sG8ybc5Du9wQFi77vN'
 
 # rtmp authentication
 RTMP_KEY = 'fdO12mlKgp0H4z3sG8ybc5Du9wQFi77vN'
-# set which rtmp stream have highes priority (low priority get kicked out)
+# set which rtmp stream have highest priority (low priority get kicked out)
 # stream is the last part of the rtmp address: rtmp://example.org/live/[stream]
 HIGH_PRIORITY_STREAM = 'event'
 LOW_PRIORITY_STREAM = 'tv'
